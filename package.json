@@ -1,0 +1,22 @@
+{
+  "name": "howbectl",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "howbectl": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "commander": "^12.1.0",
+    "configstore": "^5.0.1",
+    "inquirer": "^8.2.4",
+    "js-yaml": "^4.1.0",
+    "upgrade": "^1.1.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
