@@ -102,8 +102,6 @@ program
   .command('deploy <file>')
   .description('Deploy a container using a YAML configuration file')
   .action(async (file) => {
-    const ip = config.get('master-node').ip;
-    const port = config.get('master-node').port;
     if (!ip) {
       console.error('master-node server IP address not set. Please run "howbectl master" first.');
       return;
@@ -115,6 +113,9 @@ program
 
     try {
         const fileContent = fs.readFileSync(file, 'utf8');
+
+        const ip = config.get('master-node').ip;
+        const port = config.get('master-node').port;
 
         const response = await axios.post(`http://${ip}:${port}/deploy`, { data: fileContent }, {
             headers: {
@@ -137,11 +138,42 @@ program
     const [deployment, container] = resource.split('/');
     const replicas = options.replicas;
     if (!deployment || !container) {
-      console.error('Please provide both deployment and container names in the format <deployment>/<container>');
+      console.error('Please provide both deployment and container names in the format howbectl <deployment>/<container>');
       return;
     }
 
     console.log(`Scaling deployment "${deployment}" and container "${container}" to ${replicas} replicas.`);
+  });
+
+// Run command
+program
+  .command('run <container>')
+  .description('Create and run a particular image')
+  .option('--image <number>')
+  .action(async (container, options) => {
+    const image = options.image;
+    if (!container) {
+      console.error('Please provide both deployment and container names in the format howbectl <container>');
+      return;
+    }
+    if (!image) {
+      console.error('The --image option is required.');
+      return;
+    }
+
+    try {
+      const ip = config.get('master-node').ip;
+      const port = config.get('master-node').port;
+      
+      const response = await axios.post(`http://${ip}:${port}/run`, {
+        container,
+        image
+      });
+      console.log('Response:', response.data);
+    } catch (error) {
+      console.error('Error:', error.message);
+    }
+    
   });
 
 program
