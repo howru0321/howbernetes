@@ -25,10 +25,18 @@ export class AppController {
   }
 
   @Post('/run')
-  async runContainer(@Body() body: {container: string, image: number }) {
+  runContainer(@Body() body: {container: string, image: number }) {
     const { container, image } = body;
     console.log(`Container: ${container}, Image: ${image}`);
 
     return `Container ${container} with image ${image} is being processed`
   }
+
+  @Post('/worker')
+  addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
+    const {name, ip, port} = body;
+
+    return `worker node ${name} with ip ${ip}, port ${port} is being processed`
+  }
+
 }
