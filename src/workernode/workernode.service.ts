@@ -25,7 +25,17 @@ export class WorkernodeService {
         try{
             return await this.workerNodeRepository.findOne({where : {key}});
         } catch (error) {
+            console.error(error);
+            throw new Error('Could not get');
+        }
+      }
 
+      async getAll(): Promise<WorkerNode[]> {
+        try{
+            return await this.workerNodeRepository.find();
+        } catch (error) {
+            console.error(error);
+            throw new Error('Could not getAll');
         }
       }
 }

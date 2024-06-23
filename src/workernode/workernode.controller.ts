@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import { WorkernodeService } from './workernode.service';
 
 @Controller('workernode')
@@ -9,5 +9,10 @@ export class WorkernodeController {
     async create(@Body() body: { name: string; metadata: any }) {
         await this.workerNodeService.create(body.name, body.metadata);
         return 'good!!!';
-  }
+    }
+
+    @Get('/getall')
+    async getAll(){
+      return await this.workerNodeService.getAll();
+    }
 }
