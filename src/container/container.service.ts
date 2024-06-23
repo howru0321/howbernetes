@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Container } from '../entities/container.entity';
+import { Metadata } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class ContainerService {
@@ -10,7 +11,7 @@ export class ContainerService {
         private readonly containerRepository: Repository<Container>,
       ) {}
       
-      async create(key: string, value: string): Promise<Container> {
+      async create(key: string, value: Metadata): Promise<Container> {
         try{
             const container = this.containerRepository.create({ key, value });
             await this.containerRepository.save(container);
