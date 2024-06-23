@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body} from '@nestjs/common';
+import { HttpService } from '@nestjs/axios'
 import { AppService } from './app.service';
 import * as yaml from 'js-yaml';
-
+import { lastValueFrom } from 'rxjs';
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly httpService: HttpService
+  ) {}
 
   @Get()
   getHello(): string {
@@ -33,10 +37,26 @@ export class AppController {
   }
 
   @Post('/worker')
-  addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
+  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
     const {name, ip, port} = body;
+    
+    const response = await lastValueFrom(
+      this.httpService.post(
+        'http://howbe-db-container:3001/workernode',
+        {
+          name : name,
+          ip : ip,
+          port : port
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      ),
+    );
 
-    return `worker node ${name} with ip ${ip}, port ${port} is being processed`
+    return response.data;
   }
 
 }
