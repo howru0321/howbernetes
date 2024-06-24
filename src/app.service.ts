@@ -13,7 +13,7 @@ export class AppService {
     return 'Hello World!';
   }
 
-  async sendContainerImage(workernodeIp : string, workernodePort : string, container : string, image : string):Promise<string> {
+  async runContainerWithImage(workernodeIp : string, workernodePort : string, container : string, image : string):Promise<string> {
     const response = await lastValueFrom(
         this.httpService.post(
             `http://${workernodeIp}:${workernodePort}/run-container`,
@@ -30,5 +30,20 @@ export class AppService {
     );
     return response.data;
 }
-
+  async removeContainer(workernodeIp : string, workernodePort : string, container : string):Promise<string> {
+    const response = await lastValueFrom(
+        this.httpService.post(
+            `http://${workernodeIp}:${workernodePort}/remove-container`,
+            {
+              container
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            },
+        ),
+    );
+    return response.data;
+}
 }

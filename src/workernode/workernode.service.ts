@@ -55,6 +55,13 @@ export class WorkernodeService {
         return response.data;
     }
 
+    async getWorkerNodeInfo(workernodeName : string) : Promise<WorkerNode>{
+        const response = await lastValueFrom(
+            this.httpService.get(`http://howbe-db-container:3001/workernode/get?name=${workernodeName}`),
+        );
+        return response.data;
+    }
+
     async checkWorkerNodeInfo(workerNodes : WorkerNode[]) : Promise<WorkerNode>{
         const response = await lastValueFrom(
             this.httpService.post(

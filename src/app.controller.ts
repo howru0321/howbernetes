@@ -39,7 +39,9 @@ export class AppController {
   async runContainer(@Body() body: {container: string, image: string }) {
     const { container, image } = body;
     
+    /*API to ETCD : Get all worker nodes information from ETCD*/
     const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
+    /*API to SCHEDULER : Use scheduler service to find the worker node with the minimum number of containers*/
     const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
     
     const workernodeName : string = minContainersWorkerNode.key
@@ -47,16 +49,48 @@ export class AppController {
     const workernodePort : string = minContainersWorkerNode.value.port
     let workernodeContainers : IntegerType = parseInt(minContainersWorkerNode.value.containers)
 
-    const metadata = await this.appService.sendContainerImage(workernodeIp, workernodePort, container, image);
+    /*API to kubelet : Run Container*/
+    const metadata = await this.appService.runContainerWithImage(workernodeIp, workernodePort, container, image);
     
-    //modify containers
+    /*API to ETCD : Update the selected worker node's container count in ETCD*/
     workernodeContainers=workernodeContainers+1;
     const workernworkernodeContainersString=workernodeContainers.toString();
-    this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
 
-    const successmessage : string = await this.containerService.sendContainerInfoToDB(container, null, workernodeName, metadata)
+    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
+    await this.containerService.addContainerInfo(container, null, workernodeName, metadata)
 
-    return workernworkernodeContainersString;
+    return `${container}(container name) is running in ${workernodeName}(worker-node name)`;
+  }
+
+  @Post('/remove')
+  async removeContainer(@Body() body: {container: string}) {
+    const { container }= body;
+
+    /*API to ETCD : Get container information from ETCD*/
+    const containerInfo : Container = await this.containerService.getContainer(container);
+
+    const workernodeName = containerInfo.value.workernode;
+    
+    /*API to ETCD : Get worker nodes information which was binding this container from ETCD*/
+    const WorkerNodeInfo : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
+    
+    const workernodeIp : string = WorkerNodeInfo.value.ip
+    const workernodePort : string = WorkerNodeInfo.value.port
+    let workernodeContainers : IntegerType = parseInt(WorkerNodeInfo.value.containers)
+
+    /*API to kubelet : Remove container*/
+    const metadata = await this.appService.removeContainer(workernodeIp, workernodePort, container);
+
+    /*API to ETCD : Update the worker node's container count in ETCD*/
+    workernodeContainers=workernodeContainers-1;
+    const workernworkernodeContainersString=workernodeContainers.toString();
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
+
+    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
+    await this.containerService.addContainerInfo(container, null, workernodeName, metadata)
+
+    return `${container}(container name) is removed in ${workernodeName}(worker-node name)`;
   }
 
   @Post('/worker')
