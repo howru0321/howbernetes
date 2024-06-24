@@ -9,7 +9,7 @@ export class WorkernodeService {
         private readonly httpService: HttpService
     ) {}
 
-    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string) {
+    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string):Promise<string> {
         const response = await lastValueFrom(
             this.httpService.post(
                 'http://howbe-db-container:3001/workernode',

@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
-import { Metadata } from '../interfaces/metadata.interface'
+import { ContainerMetadata } from '../interfaces/metadata.interface'
 
 @Entity()
 export class Container {
@@ -7,5 +7,5 @@ export class Container {
     key: string;
   
     @Column('simple-json')
-    value: Metadata;
+    value: ContainerMetadata;
 }

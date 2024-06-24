@@ -4,6 +4,7 @@ import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
 import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
+import { ContainerMetadata } from './interfaces/metadata.interface'
 
 
 @Controller()
@@ -46,6 +47,18 @@ export class AppController {
     const {name, ip, port} = body;
     
     return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port);
+  }
+
+  @Get('/container/getall')
+  async getContainerList() {
+    return this.containerService.getAllContainerList();
+  }
+
+  @Post('/test')
+  async test(@Body() body: {name: string, deployment: string, workernode: string}) {
+    const {name, deployment, workernode} = body;
+    
+    return this.containerService.sendContainerInfoToDB(name, deployment, workernode);
   }
 
 }
