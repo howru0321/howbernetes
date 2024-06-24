@@ -18,4 +18,12 @@ export class AppController {
     const containerMetadata = await this.appService.runContainer(container, image);
     return containerMetadata;
   }
+
+  @Post('remove-container')
+  async removeContainer(@Body() body:{container : string}) {
+    const {container} = body;
+    
+    const stdoutmessage = await this.appService.removeContainer(container);
+    return stdoutmessage;
+  }
 }

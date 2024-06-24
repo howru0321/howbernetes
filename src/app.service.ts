@@ -7,29 +7,43 @@ export class AppService {
     return 'Hello World!';
   }
 
-runContainer(containerName: string, imageName: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const command = `sudo docker run -d --name ${containerName} ${imageName}`;
-      
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        reject(`Error: ${stderr}`);
-      } else {
-        const containerId = stdout.trim();
+  runContainer(containerName: string, imageName: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const command = `sudo docker run -d --name ${containerName} ${imageName}`;
         
-        const inspectCommand = `sudo docker inspect ${containerId}`;
-        
-        exec(inspectCommand, (inspectError, inspectStdout, inspectStderr) => {
-          if (inspectError) {
-            reject(`Error inspecting container: ${inspectStderr}`);
-          } else {
-            resolve(inspectStdout);
-          }
-        });
-      }
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(`Error: ${stderr}`);
+        } else {
+          const containerId = stdout.trim();
+          
+          const inspectCommand = `sudo docker inspect ${containerId}`;
+          
+          exec(inspectCommand, (inspectError, inspectStdout, inspectStderr) => {
+            if (inspectError) {
+              reject(`Error inspecting container: ${inspectStderr}`);
+            } else {
+              resolve(inspectStdout);
+            }
+          });
+        }
+      });
     });
-  });
-}
+  }
+
+  removeContainer(containerName: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const command = `sudo docker rm -f ${containerName}`;
+        
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(`Error: ${stderr}`);
+        } else {
+          resolve(stdout)
+        }
+      });
+    });
+  }
 
 
 }
