@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { lastValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios'
 import { WorkerNode } from '../entities/workernode.entity';
+import { IntegerType } from 'typeorm';
 
 @Injectable()
 export class WorkernodeService {
@@ -18,6 +19,24 @@ export class WorkernodeService {
                     ip,
                     port,
                     containers
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                },
+            ),
+        );
+        return response.data;
+    }
+
+    async modifyWorkerNodeContainersInfo(name: string, addnumber : IntegerType):Promise<string> {
+        const response = await lastValueFrom(
+            this.httpService.post(
+                'http://howbe-db-container:3001/workernode',
+                {
+                    name,
+                    addnumber
                 },
                 {
                     headers: {

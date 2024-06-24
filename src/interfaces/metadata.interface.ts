@@ -9,4 +9,5 @@ export interface ContainerMetadata {
   name : string;
   deployment : string;
   workernode : string;
+  metadata : string;
 }

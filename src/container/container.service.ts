@@ -10,14 +10,15 @@ export class ContainerService {
         private readonly httpService: HttpService
     ) {}
 
-    async sendContainerInfoToDB(name: string, deployment : string, workernode: string): Promise<string> {
+    async sendContainerInfoToDB(name: string, deployment : string, workernode: string, metadata : string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.post(
                 'http://howbe-db-container:3001/container',
                 {
                     name,
                     deployment,
-                    workernode
+                    workernode,
+                    metadata
                 },
                 {
                     headers: {

@@ -6,6 +6,7 @@ import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
 import { ContainerMetadata } from './interfaces/metadata.interface'
 import { Container } from './entities/container.entity';
+import { IntegerType } from 'typeorm';
 
 
 @Controller()
@@ -35,32 +36,39 @@ export class AppController {
   }
 
   @Post('/run')
-  async runContainer(@Body() body: {container: string, image: number }) {
+  async runContainer(@Body() body: {container: string, image: string }) {
     const { container, image } = body;
     
     const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
     const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
+    
+    const workernodeName : string = minContainersWorkerNode.key
+    const workernodeIp : string = minContainersWorkerNode.value.ip
+    const workernodePort : string = minContainersWorkerNode.value.port
+    let workernodeContainers : IntegerType = parseInt(minContainersWorkerNode.value.containers)
 
-    return minContainersWorkerNode;
+    const metadata = await this.appService.sendContainerImage(workernodeIp, workernodePort, container, image);
+    
+    //modify containers
+    workernodeContainers=workernodeContainers+1;
+    const workernworkernodeContainersString=workernodeContainers.toString();
+    this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
+
+    const successmessage : string = await this.containerService.sendContainerInfoToDB(container, null, workernodeName, metadata)
+
+    return workernworkernodeContainersString;
   }
 
   @Post('/worker')
-  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string, containers : string}) {
-    const {name, ip, port, containers} = body;
+  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
+    const {name, ip, port} = body;
     
-    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, containers);
+    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, "0");
   }
 
   @Get('/container/getall')
   async getContainerList(): Promise<Container[]> {
     return this.containerService.getAllContainerList();
-  }
-
-  @Post('/test')
-  async test(@Body() body: {name: string, deployment: string, workernode: string}) {
-    const {name, deployment, workernode} = body;
-    
-    return this.containerService.sendContainerInfoToDB(name, deployment, workernode);
   }
 
 }
