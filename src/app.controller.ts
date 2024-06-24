@@ -1,13 +1,17 @@
 import { Controller, Get, Post, Body} from '@nestjs/common';
-import { HttpService } from '@nestjs/axios'
 import { AppService } from './app.service';
+import { WorkernodeService } from './workernode/workernode.service';
+import { ContainerService } from './container/container.service';
 import * as yaml from 'js-yaml';
-import { lastValueFrom } from 'rxjs';
+import { WorkerNode } from './entities/workernode.entity';
+
+
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly httpService: HttpService
+    private readonly workernodeService: WorkernodeService,
+    private readonly containerService: ContainerService
   ) {}
 
   @Get()
@@ -29,34 +33,19 @@ export class AppController {
   }
 
   @Post('/run')
-  runContainer(@Body() body: {container: string, image: number }) {
+  async runContainer(@Body() body: {container: string, image: number }) {
     const { container, image } = body;
-    console.log(`Container: ${container}, Image: ${image}`);
+    
+    const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
 
-    return `Container ${container} with image ${image} is being processed`
+    return allWorkerNodeInfo;
   }
 
   @Post('/worker')
   async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
     const {name, ip, port} = body;
     
-    const response = await lastValueFrom(
-      this.httpService.post(
-        'http://howbe-db-container:3001/workernode',
-        {
-          name : name,
-          ip : ip,
-          port : port
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        },
-      ),
-    );
-
-    return response.data;
+    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port);
   }
 
 }
