@@ -5,6 +5,7 @@ import { ContainerService } from './container/container.service';
 import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
 import { ContainerMetadata } from './interfaces/metadata.interface'
+import { Container } from './entities/container.entity';
 
 
 @Controller()
@@ -38,19 +39,20 @@ export class AppController {
     const { container, image } = body;
     
     const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
+    const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
 
-    return allWorkerNodeInfo;
+    return minContainersWorkerNode;
   }
 
   @Post('/worker')
-  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
-    const {name, ip, port} = body;
+  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string, containers : string}) {
+    const {name, ip, port, containers} = body;
     
-    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port);
+    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, containers);
   }
 
   @Get('/container/getall')
-  async getContainerList() {
+  async getContainerList(): Promise<Container[]> {
     return this.containerService.getAllContainerList();
   }
 

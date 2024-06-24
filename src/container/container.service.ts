@@ -29,7 +29,7 @@ export class ContainerService {
         return response.data;
     }
 
-    async getAllContainerList(): Promise<string> {
+    async getAllContainerList(): Promise<Container[]> {
         const response = await lastValueFrom(
             this.httpService.get('http://howbe-db-container:3001/container/getall'),
         );

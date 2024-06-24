@@ -9,14 +9,15 @@ export class WorkernodeService {
         private readonly httpService: HttpService
     ) {}
 
-    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string):Promise<string> {
+    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string, containers : string):Promise<string> {
         const response = await lastValueFrom(
             this.httpService.post(
                 'http://howbe-db-container:3001/workernode',
                 {
                     name,
                     ip,
-                    port
+                    port,
+                    containers
                 },
                 {
                     headers: {
@@ -31,6 +32,19 @@ export class WorkernodeService {
     async getAllWorkerNodeInfo() : Promise<WorkerNode[]>{
         const response = await lastValueFrom(
             this.httpService.get('http://howbe-db-container:3001/workernode/getall'),
+        );
+        return response.data;
+    }
+
+    async checkWorkerNodeInfo(workerNodes : WorkerNode[]) : Promise<WorkerNode>{
+        const response = await lastValueFrom(
+            this.httpService.post(
+                'http://howbe-scheduler-server:3002/checkwnode',
+                workerNodes,
+                {
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            ),
         );
         return response.data;
     }
