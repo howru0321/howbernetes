@@ -13,7 +13,7 @@ export class WorkernodeService {
 
     async create(key: string, value: WorkerNodeMetadata): Promise<WorkerNode> {
         try{
-            const container = this.workerNodeRepository.create({ key, value });
+            const container : WorkerNode = this.workerNodeRepository.create({ key, value });
             await this.workerNodeRepository.save(container);
             return container
         } catch (error) {

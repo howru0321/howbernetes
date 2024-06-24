@@ -8,14 +8,15 @@ export class ContainerController {
     constructor(private readonly containerService: ContainerService) {}
 
     @Post()
-    async create(@Body() body: { name: string; deployment: string, workernode: string }): Promise<string> {
-        const metadata : ContainerMetadata =
+    async create(@Body() body: { name: string; deployment: string, workernode: string, metadata : string }): Promise<string> {
+        const containerMetadata : ContainerMetadata =
         {
             name : body.name,
             deployment : body.deployment,
-            workernode : body.workernode
+            workernode : body.workernode,
+            metadata : body.metadata
         }
-        const response = await this.containerService.create(body.name, metadata);
+        const response = await this.containerService.create(body.name, containerMetadata);
         return `Successful add ${response.key} to container list`;
     }
 
