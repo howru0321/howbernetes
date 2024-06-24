@@ -12,6 +12,18 @@ const config = new Configstore(pkg.name);
 
 const program = new Command();
 
+function getMasterNodeConfig() {
+  const ip = config.get('master-node').ip;
+  const port = config.get('master-node').port;
+  if (!ip) {
+    throw new Error('master-node server IP address not set. Please run "howbectl master" first.');
+  }
+  if (!port) {
+    throw new Error('master-node server port not set. Please run "howbectl master" first.');
+  }
+  return { ip, port };
+}
+
 program
   .name('howbectl')
   .description('CLI tool to manage deployments and scaling of containers')
@@ -47,13 +59,21 @@ program
         ip: answers.masterIp,
         port: answers.masterPort
       });
-      console.log(`Master-node with IP address ${answers.masterIp} and port ${answers.masterPort} added.`);
+      console.log(`Modify master-node information by IP address ${answers.masterIp} and port ${answers.masterPort}.`);
   });
 
 program
   .command('worker')
-  .description('Add a worker-node server IP address')
+  .description('Add a worker-node information')
   .action(async () => {
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+
     const answers = await inquirer.prompt([
       {
         type: 'input',
@@ -88,13 +108,20 @@ program
       }
     ]);
 
-    const workerNodes = config.get('worker-node') || {};
-    workerNodes[answers.name] = {
-      ip: answers.workerIp,
-      port: answers.workerPort
-    };
-    config.set('worker-node', workerNodes);
-    console.log(`Worker-node ${answers.name} with IP address ${answers.workerIp} and port ${answers.workerPort} added.`);
+    try {
+      const response = await axios.post(`http://${ip}:${port}/worker`, {
+        name: answers.name,
+        ip: answers.workerIp,
+        port: answers.workerPort
+      }, {
+        'Content-Type': 'application/json'
+      });
+      console.log('Response:', response.data);
+
+      console.log(`Worker-node ${answers.name} with IP address ${answers.workerIp} and port ${answers.workerPort} added.`);
+    } catch (error) {
+      console.error('Error:', error.message);
+    }
   });
 
 // Deploy command
@@ -102,20 +129,16 @@ program
   .command('deploy <file>')
   .description('Deploy a container using a YAML configuration file')
   .action(async (file) => {
-    if (!ip) {
-      console.error('master-node server IP address not set. Please run "howbectl master" first.');
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
       return;
     }
-    if (!port) {
-        console.error('master-node server port not set. Please run "howbectl master" first.');
-        return;
-      }
 
     try {
         const fileContent = fs.readFileSync(file, 'utf8');
-
-        const ip = config.get('master-node').ip;
-        const port = config.get('master-node').port;
 
         const response = await axios.post(`http://${ip}:${port}/deploy`, { data: fileContent }, {
             headers: {
@@ -151,6 +174,14 @@ program
   .description('Create and run a particular image')
   .option('--image <number>')
   .action(async (container, options) => {
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+
     const image = options.image;
     if (!container) {
       console.error('Please provide both deployment and container names in the format howbectl <container>');
@@ -162,9 +193,6 @@ program
     }
 
     try {
-      const ip = config.get('master-node').ip;
-      const port = config.get('master-node').port;
-      
       const response = await axios.post(`http://${ip}:${port}/run`, {
         container,
         image
@@ -174,6 +202,34 @@ program
       console.error('Error:', error.message);
     }
     
+  });
+
+// Remove command
+program
+  .command('remove <container>')
+  .description('Remove container')
+  .action(async (container) => {
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+    
+    if (!container) {
+      console.error('Please provide both deployment and container names in the format howbectl <container>');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`http://${ip}:${port}/remove`, {
+        container
+      });
+      console.log('Response:', response.data);
+    } catch (error) {
+      console.error('Error:', error.message);
+    }
   });
 
 program
