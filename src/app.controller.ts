@@ -15,7 +15,7 @@ export class AppController {
     const {container, image} = body;
 
     
-    const containerMetadata : string = await this.appService.runContainer(container, image);
+    const containerMetadata = await this.appService.runContainer(container, image);
     return containerMetadata;
   }
 }

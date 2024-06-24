@@ -9,7 +9,7 @@ export class AppService {
 
 runContainer(containerName: string, imageName: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const command = `docker run -d --name ${containerName} ${imageName}`;
+    const command = `sudo docker run -d --name ${containerName} ${imageName}`;
       
     exec(command, (error, stdout, stderr) => {
       if (error) {
@@ -17,14 +17,13 @@ runContainer(containerName: string, imageName: string): Promise<string> {
       } else {
         const containerId = stdout.trim();
         
-        const inspectCommand = `docker inspect ${containerId}`;
+        const inspectCommand = `sudo docker inspect ${containerId}`;
         
         exec(inspectCommand, (inspectError, inspectStdout, inspectStderr) => {
           if (inspectError) {
             reject(`Error inspecting container: ${inspectStderr}`);
           } else {
-            //resolve(inspectStdout);
-            return inspectStdout;
+            resolve(inspectStdout);
           }
         });
       }
