@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpException, HttpStatus  } from '@nestjs/common';
 import { WorkernodeService } from './workernode.service';
-import { Metadata } from '../interfaces/metadata.interface'
+import { WorkerNodeMetadata } from '../interfaces/metadata.interface'
 import { WorkerNode } from '../entities/workernode.entity';
 
 @Controller('workernode')
@@ -8,15 +8,16 @@ export class WorkernodeController {
     constructor(private readonly workerNodeService: WorkernodeService) {}
 
     @Post()
-    async create(@Body() body: { name: string, ip: string, port: string }) {
-      const metadata : Metadata= {
+    async create(@Body() body: { name: string, ip: string, port: string }): Promise<string>{
+      const metadata : WorkerNodeMetadata= {
         name : body.name,
         ip : body.ip,
         port : body.port
       }
       
-        const response = await this.workerNodeService.create(body.name, metadata);
-        return `Successful add ${response.key}`;
+      const response = await this.workerNodeService.create(body.name, metadata);
+      return `Successful add ${response.key} to worker node list`;
+      
     }
 
     @Get('/getall')
