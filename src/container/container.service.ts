@@ -31,6 +31,17 @@ export class ContainerService {
       }
     }
 
+    async delete(key: string): Promise<Container> {
+      try{
+        const container : Container = await this.get(key)
+          return await this.containerRepository.remove(container);
+          return container
+      } catch (error) {
+          console.error(error);
+          throw new Error('Could not get');
+      }
+    }
+
     async getAll(): Promise<Container[]> {
       try{
           return await this.containerRepository.find();

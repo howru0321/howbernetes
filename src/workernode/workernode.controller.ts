@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, HttpException, HttpStatus  } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { WorkernodeService } from './workernode.service';
 import { WorkerNodeMetadata } from '../interfaces/metadata.interface'
 import { WorkerNode } from '../entities/workernode.entity';
@@ -24,5 +24,10 @@ export class WorkernodeController {
     @Get('/getall')
     async getAll() : Promise<WorkerNode[]> {
       return await this.workerNodeService.getAll();
+    }
+
+    @Get('/get')
+    async get(@Query('name') workernodeName) : Promise<WorkerNode> {
+      return await this.workerNodeService.get(workernodeName);
     }
 }
