@@ -8,12 +8,14 @@ export class WorkernodeController {
     constructor(private readonly workerNodeService: WorkernodeService) {}
 
     @Post()
-    async create(@Body() body: { name: string, ip: string, port: string, containers: string }): Promise<string>{
+    async create(@Body() body: { name: string, ip: string, port: string, containers: number, pods : number, deployments : number }): Promise<string>{
       const metadata : WorkerNodeMetadata= {
         name : body.name,
         ip : body.ip,
         port : body.port,
-        containers : body.containers
+        containers : body.containers,
+        pods : body.pods,
+        deployments : body.deployments
       }
       
       const response = await this.workerNodeService.create(body.name, metadata);

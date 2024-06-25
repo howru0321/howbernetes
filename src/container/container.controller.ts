@@ -8,10 +8,11 @@ export class ContainerController {
     constructor(private readonly containerService: ContainerService) {}
 
     @Post()
-    async create(@Body() body: { name: string; deployment: string, workernode: string, metadata : string }) {
+    async create(@Body() body: { name: string, pod : string, deployment: string, workernode: string, metadata : string }) {
         const containerMetadata : ContainerMetadata =
         {
             name : body.name,
+            pod : body.pod,
             deployment : body.deployment,
             workernode : body.workernode,
             metadata : body.metadata
