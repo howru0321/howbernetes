@@ -11,19 +11,19 @@ export class AppController {
   }
 
   @Post('run-container')
-  async runContainer(@Body() body:{container : string, image : string}) {
-    const {container, image} = body;
+  async runContainer(@Body() body:{image : string}) {
+    const {image} = body;
 
     
-    const containerMetadata = await this.appService.runContainer(container, image);
+    const containerMetadata = await this.appService.runContainer(image);
     return containerMetadata;
   }
 
   @Post('remove-container')
-  async removeContainer(@Body() body:{container : string}) {
-    const {container} = body;
+  async removeContainer(@Body() body:{containerId : string}) {
+    const {containerId} = body;
     
-    const stdoutmessage = await this.appService.removeContainer(container);
+    const stdoutmessage = await this.appService.removeContainer(containerId);
     return stdoutmessage;
   }
 }
