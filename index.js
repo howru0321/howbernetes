@@ -194,7 +194,7 @@ program
     }
 
     try {
-      const response = await axios.post(`http://${ip}:${port}/create`, {
+      const response = await axios.post(`http://${ip}:${port}/create/pod`, {
         podName : container,
         containerInfolist : [
           {
