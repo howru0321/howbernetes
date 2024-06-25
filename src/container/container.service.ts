@@ -10,12 +10,13 @@ export class ContainerService {
         private readonly httpService: HttpService
     ) {}
 
-    async addContainerInfo(name: string, deployment : string, workernode: string, metadata : string): Promise<string> {
+    async addContainerInfo(name: string, pod: string, deployment : string, workernode: string, metadata : string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.post(
                 'http://howbe-db-container:3001/container',
                 {
                     name,
+                    pod,
                     deployment,
                     workernode,
                     metadata
@@ -33,7 +34,7 @@ export class ContainerService {
     async removeContainerInfo(containerName: string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.delete(
-                `http://howbe-db-container:3001/container?name=?${containerName}`
+                `http://howbe-db-container:3001/container?name=${containerName}`
             ),
         );
         return response.data;

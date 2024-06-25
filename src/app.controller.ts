@@ -6,7 +6,6 @@ import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
 import { ContainerMetadata } from './interfaces/metadata.interface'
 import { Container } from './entities/container.entity';
-import { IntegerType } from 'typeorm';
 
 
 @Controller()
@@ -47,18 +46,19 @@ export class AppController {
     const workernodeName : string = minContainersWorkerNode.key
     const workernodeIp : string = minContainersWorkerNode.value.ip
     const workernodePort : string = minContainersWorkerNode.value.port
-    let workernodeContainers : IntegerType = parseInt(minContainersWorkerNode.value.containers)
+    let workernodeContainers : number = minContainersWorkerNode.value.containers
+    const workernodePods : number = minContainersWorkerNode.value.pods
+    const workernodeDeployments : number = minContainersWorkerNode.value.deployments
 
     /*API to kubelet : Run Container*/
     const metadata = await this.appService.runContainerWithImage(workernodeIp, workernodePort, container, image);
     
     /*API to ETCD : Update the selected worker node's container count in ETCD*/
     workernodeContainers=workernodeContainers+1;
-    const workernworkernodeContainersString=workernodeContainers.toString();
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.containerService.addContainerInfo(container, null, workernodeName, metadata)
+    await this.containerService.addContainerInfo(container, null, null, workernodeName, metadata)
 
     return `${container}(container name) is running in ${workernodeName}(worker-node name)`;
   }
@@ -77,18 +77,19 @@ export class AppController {
     
     const workernodeIp : string = WorkerNodeInfo.value.ip
     const workernodePort : string = WorkerNodeInfo.value.port
-    let workernodeContainers : IntegerType = parseInt(WorkerNodeInfo.value.containers)
+    let workernodeContainers : number = WorkerNodeInfo.value.containers
+    const workernodePods : number = WorkerNodeInfo.value.pods
+    const workernodeDeployments : number = WorkerNodeInfo.value.deployments
 
     /*API to kubelet : Remove container*/
     const metadata = await this.appService.removeContainer(workernodeIp, workernodePort, container);
 
     /*API to ETCD : Update the worker node's container count in ETCD*/
     workernodeContainers=workernodeContainers-1;
-    const workernworkernodeContainersString=workernodeContainers.toString();
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernworkernodeContainersString);
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.containerService.addContainerInfo(container, null, workernodeName, metadata)
+    await this.containerService.removeContainerInfo(container)
 
     return `${container}(container name) is removed in ${workernodeName}(worker-node name)`;
   }
@@ -97,7 +98,7 @@ export class AppController {
   async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
     const {name, ip, port} = body;
     
-    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, "0");
+    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, 0, 0, 0);
   }
 
   @Get('/container/getall')
