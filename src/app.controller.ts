@@ -3,11 +3,11 @@ import { AppService } from './app.service';
 import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
 import { PodService } from './pod/pod.service'
-import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
 import { Container } from './entities/container.entity';
-import { CreatePodDto } from './create-pod.dto';
-import { ContainerInfo } from './create-pod.dto';
+import { CreatePodDto } from './interfaces/metadata.interface';
+import { CreateDeployDto } from './interfaces/metadata.interface'
+import { ContainerInfo } from './interfaces/metadata.interface';
 import { ContainerMetadata } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
 
@@ -30,97 +30,20 @@ export class AppController {
     return minContainersWorkerNode
   }
 
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
-  }
-
-  @Post('/deploy')
-  deploy(@Body() body: { data: string }): string {
-    try {
-      const config = yaml.load(body.data);
-      console.log('Received deployment configuration:', config);
-      // 여기에 실제 배포 로직을 추가합니다.
-      return 'Deployment configuration received successfully';
-    } catch (error) {
-      console.error('Error parsing the YAML file:', error);
-      throw new Error('Invalid YAML file');
-    }
-  }
-
-  @Post('/run')
-  async runContainer(@Body() body: {container: string, image: string }) {
-    const { container, image } = body;
-    
-    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
-    
-    const workernodeName : string = minContainersWorkerNode.key
-    const workernodeIp : string = minContainersWorkerNode.value.ip
-    const workernodePort : string = minContainersWorkerNode.value.port
-    let workernodeContainers : number = minContainersWorkerNode.value.containers
-    const workernodePods : number = minContainersWorkerNode.value.pods
-    const workernodeDeployments : number = minContainersWorkerNode.value.deployments
-
-    /*API to kubelet : Run Container*/
-    const metadata = await this.appService.runContainerWithImage(workernodeIp, workernodePort, container, image);
-    
+  private async savePodInfoInDB(containerlist : ContainerInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[]){
     /*API to ETCD : Update the selected worker node's container count in ETCD*/
-    workernodeContainers=workernodeContainers+1;
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
+    const containernumber : number = containerlist.length;
+    workernodeContainers=workernodeContainers+containernumber;
+    workernodePods=workernodePods+1;
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.containerService.addContainerInfo(container, null, null, workernodeName, metadata )
-
-    return `${container}(container name) is running in ${workernodeName}(worker-node name)`;
+    await this.podService.addPodInfo(podName, null, workernodeName, containernumber, containerlist, containerMetadataList)
   }
 
-  @Post('/remove')
-  async removeContainer(@Body() body: {container: string}) {
-    const { container }= body;
-
-    /*API to ETCD : Get container information from ETCD*/
-    const containerInfo : Container = await this.containerService.getContainer(container);
-
-    const workernodeName = containerInfo.value.workernode;
-    
-    /*API to ETCD : Get worker nodes information which was binding this container from ETCD*/
-    const WorkerNodeInfo : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
-    
-    const workernodeIp : string = WorkerNodeInfo.value.ip
-    const workernodePort : string = WorkerNodeInfo.value.port
-    let workernodeContainers : number = WorkerNodeInfo.value.containers
-    const workernodePods : number = WorkerNodeInfo.value.pods
-    const workernodeDeployments : number = WorkerNodeInfo.value.deployments
-
-    /*API to kubelet : Remove container*/
-    await this.appService.removeContainer(workernodeIp, workernodePort, container);
-
-    /*API to ETCD : Update the worker node's container count in ETCD*/
-    workernodeContainers=workernodeContainers-1;
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
-
-    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.containerService.removeContainerInfo(container)
-
-    return `${container}(container name) is removed in ${workernodeName}(worker-node name)`;
-  }
-
-  @Post('/create')
-  async createPod(@Body() body : CreatePodDto){
-    const podName : string = body.podName;
-    const containerInfoList : ContainerInfo[] = body.containerInfolist;
-
-    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
-    
-    const workernodeName : string = minContainersWorkerNode.key
-    const workernodeIp : string = minContainersWorkerNode.value.ip
-    const workernodePort : string = minContainersWorkerNode.value.port
-    let workernodeContainers : number = minContainersWorkerNode.value.containers
-    let workernodePods : number = minContainersWorkerNode.value.pods
-    const workernodeDeployments : number = minContainersWorkerNode.value.deployments
-
-    let containerList : ContainerMetadata[] = [];
-    for(var containerInfo of containerInfoList){
+  private async runContainers(containerlist : ContainerInfo[], workernodeIp : string, workernodePort : string, podName : string, workernodeName : string) : Promise<ContainerMetadata[]>{
+    let containerMetadataList : ContainerMetadata[] = [];
+    for(var containerInfo of containerlist){
       const containerName = containerInfo.name;
       const ImageName = containerInfo.image;
 
@@ -134,17 +57,45 @@ export class AppController {
         workernode : workernodeName,
         metadata : metadata
       }
-      containerList.push(containerMetadata);
+      containerMetadataList.push(containerMetadata);
     }
-    
-    /*API to ETCD : Update the selected worker node's container count in ETCD*/
-    const containernumber : number = containerInfoList.length;
-    workernodeContainers=workernodeContainers+containernumber;
-    workernodePods=workernodePods+1;
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
+    return containerMetadataList
+  }
 
-    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.podService.addPodInfo(podName, null, workernodeName, containernumber, containerList)
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+
+  @Post('/create/deploy')
+  async createDeploy(@Body() body: CreateDeployDto) {
+    const deployName : string = body.deployName
+    const replicas : number = body.replicas
+    const podName : string = body.podInfo.podName
+    const containerlist : ContainerInfo[] = body.podInfo.containerInfolist
+
+    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
+    
+    const workernodeName : string = minContainersWorkerNode.key
+  }
+
+  @Post('/create/pod')
+  async createPod(@Body() body : CreatePodDto){
+    const podName : string = body.podName;
+    const containerlist : ContainerInfo[] = body.containerInfolist;
+
+    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
+    
+    const workernodeName : string = minContainersWorkerNode.key
+    const workernodeIp : string = minContainersWorkerNode.value.ip
+    const workernodePort : string = minContainersWorkerNode.value.port
+    let workernodeContainers : number = minContainersWorkerNode.value.containers
+    let workernodePods : number = minContainersWorkerNode.value.pods
+
+    const containerMetadataList : ContainerMetadata[] = await this.runContainers(containerlist, workernodeIp, workernodePort, podName, workernodeName)
+    await this.savePodInfoInDB(containerlist, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList)
+
+    //await this.runContainersetDB(podName, containerlist, minContainersWorkerNode, null)
 
     return `${podName}(container name) is running in ${workernodeName}(worker-node name)`;
   }
@@ -163,10 +114,9 @@ export class AppController {
     const workernodePort : string = WorkerNodeInfo.value.port
     let workernodeContainers : number = WorkerNodeInfo.value.containers
     let workernodePods : number = WorkerNodeInfo.value.pods
-    const workernodeDeployments : number = WorkerNodeInfo.value.deployments
 
     /*API to kubelet : Remove container*/
-    const containerList : ContainerMetadata[] = podInfo.value.containerlist
+    const containerList : ContainerInfo[] = podInfo.value.containerlist
     for(var container of containerList){
       const containerName = container.name
       await this.appService.removeContainer(workernodeIp, workernodePort, containerName);
@@ -177,7 +127,7 @@ export class AppController {
     const containerNumber : number = containerList.length;
     workernodeContainers=workernodeContainers-containerNumber;
     workernodePods=workernodePods-1
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
     await this.podService.removePodInfo(podName)
@@ -189,7 +139,7 @@ export class AppController {
   async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
     const {name, ip, port} = body;
     
-    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, 0, 0, 0);
+    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, 0, 0);
   }
 
   @Get('/container/getall')

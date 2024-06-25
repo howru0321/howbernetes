@@ -10,14 +10,13 @@ export class WorkernodeService {
         private readonly httpService: HttpService
     ) {}
 
-    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string, containers : number, pods : number, deployments : number):Promise<string> {
+    async sendWorkerNodeInfoToDB(name: string, ip: string, port: string, containers : number, pods : number):Promise<string> {
         const metadata : WorkerNodeMetadata= {
             name : name,
             ip : ip,
             port : port,
             containers : containers,
-            pods : pods,
-            deployments : deployments
+            pods : pods
           }
         const response = await lastValueFrom(
             this.httpService.post(

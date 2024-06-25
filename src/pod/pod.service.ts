@@ -5,6 +5,7 @@ import { Pod } from '../entities/pod.entity';
 import { PodMetadata } from '../interfaces/metadata.interface'
 
 import { ContainerMetadata } from '../interfaces/metadata.interface'
+import { ContainerInfo } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class PodService {
@@ -12,7 +13,7 @@ export class PodService {
         private readonly httpService: HttpService
     ) {}
 
-    async addPodInfo(name: string, deployment : string, workernode: string, containers : number, containerlist : ContainerMetadata[] ): Promise<string> {
+    async addPodInfo(name: string, deployment : string, workernode: string, containers : number, containerlist : ContainerInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
         const podMetadata : PodMetadata =
         {
             name : name,
@@ -27,7 +28,8 @@ export class PodService {
                 'http://howbe-db-server:3001/pod',
                 {
                     name,
-                    podMetadata
+                    podMetadata,
+                    containerMetadataList
                 },
                 {
                     headers: {
