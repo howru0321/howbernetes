@@ -9,7 +9,6 @@ export class ContainerController {
 
     @Post()
     async create(@Body() body: { name: string, containerMetadata : ContainerMetadata }) {
-
         const response = await this.containerService.create(body.name, body.containerMetadata);
         return `Successful add ${response.key} to container list`;
     }

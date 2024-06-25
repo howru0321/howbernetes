@@ -5,7 +5,6 @@ export interface WorkerNodeMetadata {
   port: string;
   containers: number;
   pods : number;
-  deployments : number;
 }
 
 export interface ContainerMetadata {
@@ -21,12 +20,21 @@ export interface PodMetadata {
   deployment : string;
   workernode : string;
   containers : number;
-  containerlist : ContainerMetadata[];
+  containerlist : ContainerInfo[];
 }
 
 export interface DeploymentMetadata {
   name : string;
-  workernode : string;
   replica : number;
   podname : string;
+}
+
+export class CreatePodDto {
+  podName: string;
+  containerInfolist: ContainerInfo[];
+}
+
+export class ContainerInfo {
+  name: string;
+  image: string;
 }

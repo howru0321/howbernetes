@@ -6,6 +6,7 @@ import { PodMetadata } from '../interfaces/metadata.interface'
 
 import { ContainerService } from '../container/container.service'
 import { ContainerMetadata } from '../interfaces/metadata.interface'
+import { ContainerInfo } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class PodService {
@@ -15,11 +16,9 @@ export class PodService {
         private readonly containerService: ContainerService
     ){}
 
-    async create(key: string, value: PodMetadata): Promise<Pod> {
-      const conatinerlist : ContainerMetadata[] = value.containerlist;
-
+    async create(key: string, value: PodMetadata, containerMetadataList : ContainerMetadata[]): Promise<Pod> {
       /*container db에 container info 저장 */
-      for(const container of conatinerlist){
+      for(const container of containerMetadataList){
           await this.containerService.create(container.name, container)
       }
 
@@ -45,7 +44,7 @@ export class PodService {
     async delete(key: string): Promise<Pod> {
       try{
         const pod : Pod = await this.get(key)
-        const containerlist : ContainerMetadata[] = pod.value.containerlist
+        const containerlist : ContainerInfo[] = pod.value.containerlist
         for(var container of containerlist){
           await this.containerService.delete(container.name)
         }

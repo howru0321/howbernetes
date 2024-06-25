@@ -12,6 +12,8 @@ import { Container } from '../entities/container.entity'
     TypeOrmModule.forFeature([Container], 'containerConnection')
   ],
   controllers: [PodController],
-  providers: [PodService, ContainerService]
+  providers: [
+    PodService,
+    ContainerService]
 })
 export class PodModule {}

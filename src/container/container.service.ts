@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DeleteResult } from 'typeorm';
 import { Container } from '../entities/container.entity';
 import { ContainerMetadata } from '../interfaces/metadata.interface'
 
@@ -35,6 +35,7 @@ export class ContainerService {
       try{
         const container : Container = await this.get(key)
           return await this.containerRepository.remove(container);
+          //return await this.containerRepository.delete({key:key});
       } catch (error) {
           console.error(error);
           throw new Error('Could not get');
