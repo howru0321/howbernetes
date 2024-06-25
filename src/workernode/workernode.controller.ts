@@ -8,17 +8,9 @@ export class WorkernodeController {
     constructor(private readonly workerNodeService: WorkernodeService) {}
 
     @Post()
-    async create(@Body() body: { name: string, ip: string, port: string, containers: number, pods : number, deployments : number }): Promise<string>{
-      const metadata : WorkerNodeMetadata= {
-        name : body.name,
-        ip : body.ip,
-        port : body.port,
-        containers : body.containers,
-        pods : body.pods,
-        deployments : body.deployments
-      }
+    async create(@Body() body: { name: string, metadata : WorkerNodeMetadata }): Promise<string>{
       
-      const response = await this.workerNodeService.create(body.name, metadata);
+      const response = await this.workerNodeService.create(body.name, body.metadata);
       return `Successful add ${response.key} to worker node list`;
       
     }
