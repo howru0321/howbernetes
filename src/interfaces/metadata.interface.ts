@@ -1,4 +1,3 @@
-
 export interface WorkerNodeMetadata {
   name: string;
   ip: string;
@@ -8,11 +7,12 @@ export interface WorkerNodeMetadata {
 }
 
 export interface ContainerMetadata {
+  id : string;
   name : string;
+  image : string;
   pod : string;
   deployment : string;
   workernode : string;
-  metadata : string;
 }
 
 export interface PodMetadata {
@@ -20,7 +20,7 @@ export interface PodMetadata {
   deployment : string;
   workernode : string;
   containers : number;
-  containerlist : ContainerInfo[];
+  containeridlist : ContainerIdInfo[];
 }
 
 export interface DeploymentMetadata {
@@ -37,4 +37,15 @@ export class CreatePodDto {
 export class ContainerInfo {
   name: string;
   image: string;
+}
+
+export class ContainerIdInfo {
+  id : string;
+  metadata : ContainerInfo;
+}
+
+export class CreateDeployDto {
+  deployName: string;
+  replicas: number;
+  podInfo : CreatePodDto;
 }

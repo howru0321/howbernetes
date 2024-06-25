@@ -6,7 +6,7 @@ import { PodMetadata } from '../interfaces/metadata.interface'
 
 import { ContainerService } from '../container/container.service'
 import { ContainerMetadata } from '../interfaces/metadata.interface'
-import { ContainerInfo } from '../interfaces/metadata.interface'
+import { ContainerIdInfo } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class PodService {
@@ -19,7 +19,7 @@ export class PodService {
     async create(key: string, value: PodMetadata, containerMetadataList : ContainerMetadata[]): Promise<Pod> {
       /*container db에 container info 저장 */
       for(const container of containerMetadataList){
-          await this.containerService.create(container.name, container)
+          await this.containerService.create(container.id, container)
       }
 
       try{
@@ -44,9 +44,9 @@ export class PodService {
     async delete(key: string): Promise<Pod> {
       try{
         const pod : Pod = await this.get(key)
-        const containerlist : ContainerInfo[] = pod.value.containerlist
-        for(var container of containerlist){
-          await this.containerService.delete(container.name)
+        const containeridlist : ContainerIdInfo[] = pod.value.containeridlist
+        for(var container of containeridlist){
+          await this.containerService.delete(container.id)
         }
         return await this.podRepository.remove(pod);
       } catch (error) {
