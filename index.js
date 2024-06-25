@@ -7,6 +7,7 @@ const yaml = require('js-yaml');
 const Configstore = require('configstore');
 const pkg = require('./package.json');
 const axios = require('axios');
+const path = require('path');
 
 const config = new Configstore(pkg.name);
 
@@ -193,9 +194,14 @@ program
     }
 
     try {
-      const response = await axios.post(`http://${ip}:${port}/run`, {
-        container,
-        image
+      const response = await axios.post(`http://${ip}:${port}/create`, {
+        podName : container,
+        containerInfolist : [
+          {
+            name : container,
+            image : image
+          },
+        ]
       });
       console.log('Response:', response.data);
     } catch (error) {
@@ -226,6 +232,90 @@ program
       const response = await axios.post(`http://${ip}:${port}/remove`, {
         container
       });
+      console.log('Response:', response.data);
+    } catch (error) {
+      console.error('Error:', error.message);
+    }
+  });
+
+
+// Create command
+program
+  .command('create')
+  .description('Create a resource from a file')
+  .option('-f, --filename <filePath>', 'Path to the YAML file')
+  .action(async (cmd) => {
+    let filePath = cmd.filename;
+
+    if (!filePath) {
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'filePath',
+          message: 'Please provide the path to the YAML file:',
+          validate: (input) => {
+            if (fs.existsSync(input)) {
+              return true;
+            }
+            return 'File does not exist. Please provide a valid file path.';
+          }
+        }
+      ]);
+      filePath = answers.filePath;
+    }
+
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+
+    let podName;
+    let containerInfolist;
+    try {
+      const fileContents = fs.readFileSync(filePath, 'utf8');
+      const data = yaml.load(fileContents);
+
+      podName= data.metadata.name;
+      containerInfolist = data.spec.containers;
+    } catch (error) {
+      console.error('Error reading or parsing YAML file:', error.message);
+    }
+
+    try {
+      const response = await axios.post(`http://${ip}:${port}/create`, {
+        podName,
+        containerInfolist
+      });
+      console.log('Response:', response.data);
+    } catch (error) {
+      console.error('Error:', error.message);
+    }
+
+  });
+
+// Delete command
+program
+  .command('delete <pod>')
+  .description('Delete pod')
+  .action(async (pod) => {
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+    
+    if (!pod) {
+      console.error('Please provide pod name in the format howbectl delete <container>');
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`http://${ip}:${port}/delete?name=${pod}`);
       console.log('Response:', response.data);
     } catch (error) {
       console.error('Error:', error.message);
