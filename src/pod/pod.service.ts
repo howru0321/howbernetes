@@ -16,21 +16,53 @@ export class PodService {
     ){}
 
     async create(key: string, value: PodMetadata): Promise<Pod> {
-        const conatinerlist : ContainerMetadata[] = value.containerlist;
+      const conatinerlist : ContainerMetadata[] = value.containerlist;
 
-        /*container db에 container info 저장 */
-        for(const container of conatinerlist){
-            await this.containerService.create(container.name, container)
-        }
+      /*container db에 container info 저장 */
+      for(const container of conatinerlist){
+          await this.containerService.create(container.name, container)
+      }
 
-        try{
-          const container = this.podRepository.create({ key, value });
-            await this.podRepository.save(container);
-              return container
-        } catch (error) {
-          console.error('Error saving key-value pair:', error);
-            throw new Error('Could not save key-value pair');
-          }
+      try{
+        const container = this.podRepository.create({ key, value });
+        await this.podRepository.save(container);
+        return container
+      } catch (error) {
+        console.error('Error saving key-value pair:', error);
+        throw new Error('Could not save key-value pair');
         }
+    }
+
+    async get(key: string): Promise<Pod> {
+      try{
+          return await this.podRepository.findOne({where : {key}});
+      } catch (error) {
+          console.error(error);
+          throw new Error('Could not get');
+      }
+    }
+
+    async delete(key: string): Promise<Pod> {
+      try{
+        const pod : Pod = await this.get(key)
+        const containerlist : ContainerMetadata[] = pod.value.containerlist
+        for(var container of containerlist){
+          await this.containerService.delete(container.name)
+        }
+        return await this.podRepository.remove(pod);
+      } catch (error) {
+        console.error(error);
+        throw new Error('Could not get');
+      }
+    }
+
+    async getAll(): Promise<Pod[]> {
+      try{
+          return await this.podRepository.find();
+      } catch (error) {
+          console.error(error);
+          throw new Error('Could not getAll');
+      }
+    }
 
 }
