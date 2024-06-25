@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { lastValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios'
 import { WorkerNode } from '../entities/workernode.entity';
+import { WorkerNodeMetadata } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class WorkernodeService {
@@ -10,16 +11,20 @@ export class WorkernodeService {
     ) {}
 
     async sendWorkerNodeInfoToDB(name: string, ip: string, port: string, containers : number, pods : number, deployments : number):Promise<string> {
+        const metadata : WorkerNodeMetadata= {
+            name : name,
+            ip : ip,
+            port : port,
+            containers : containers,
+            pods : pods,
+            deployments : deployments
+          }
         const response = await lastValueFrom(
             this.httpService.post(
-                'http://howbe-db-container:3001/workernode',
+                'http://howbe-db-server:3001/workernode',
                 {
                     name,
-                    ip,
-                    port,
-                    containers,
-                    pods,
-                    deployments
+                    metadata
                 },
                 {
                     headers: {
@@ -34,14 +39,14 @@ export class WorkernodeService {
     
     async getAllWorkerNodeInfo() : Promise<WorkerNode[]>{
         const response = await lastValueFrom(
-            this.httpService.get('http://howbe-db-container:3001/workernode/getall'),
+            this.httpService.get('http://howbe-db-server:3001/workernode/getall'),
         );
         return response.data;
     }
 
     async getWorkerNodeInfo(workernodeName : string) : Promise<WorkerNode>{
         const response = await lastValueFrom(
-            this.httpService.get(`http://howbe-db-container:3001/workernode/get?name=${workernodeName}`),
+            this.httpService.get(`http://howbe-db-server:3001/workernode/get?name=${workernodeName}`),
         );
         return response.data;
     }

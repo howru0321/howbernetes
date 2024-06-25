@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Body} from '@nestjs/common';
+import { Controller, Get, Post, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
 import { AppService } from './app.service';
 import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
+import { PodService } from './pod/pod.service'
 import * as yaml from 'js-yaml';
 import { WorkerNode } from './entities/workernode.entity';
-import { ContainerMetadata } from './interfaces/metadata.interface'
 import { Container } from './entities/container.entity';
+import { CreatePodDto } from './create-pod.dto';
+import { ContainerInfo } from './create-pod.dto';
+import { ContainerMetadata } from './interfaces/metadata.interface';
 
 
 @Controller()
@@ -13,8 +16,18 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly workernodeService: WorkernodeService,
-    private readonly containerService: ContainerService
+    private readonly containerService: ContainerService,
+    private readonly podService: PodService
   ) {}
+
+  private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
+    /*API to ETCD : Get all worker nodes information from ETCD*/
+    const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
+    /*API to SCHEDULER : Use scheduler service to find the worker node with the minimum number of containers*/
+    const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
+    
+    return minContainersWorkerNode
+  }
 
   @Get()
   getHello(): string {
@@ -38,10 +51,7 @@ export class AppController {
   async runContainer(@Body() body: {container: string, image: string }) {
     const { container, image } = body;
     
-    /*API to ETCD : Get all worker nodes information from ETCD*/
-    const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
-    /*API to SCHEDULER : Use scheduler service to find the worker node with the minimum number of containers*/
-    const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
+    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
     
     const workernodeName : string = minContainersWorkerNode.key
     const workernodeIp : string = minContainersWorkerNode.value.ip
@@ -58,7 +68,7 @@ export class AppController {
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.containerService.addContainerInfo(container, null, null, workernodeName, metadata)
+    await this.containerService.addContainerInfo(container, null, null, workernodeName, metadata )
 
     return `${container}(container name) is running in ${workernodeName}(worker-node name)`;
   }
@@ -92,6 +102,50 @@ export class AppController {
     await this.containerService.removeContainerInfo(container)
 
     return `${container}(container name) is removed in ${workernodeName}(worker-node name)`;
+  }
+
+  @Post('/create')
+  async createPod(@Body() body : CreatePodDto){
+    const podName : string = body.podName;
+    const containerInfoList : ContainerInfo[] = body.containerInfolist;
+
+    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
+    
+    const workernodeName : string = minContainersWorkerNode.key
+    const workernodeIp : string = minContainersWorkerNode.value.ip
+    const workernodePort : string = minContainersWorkerNode.value.port
+    let workernodeContainers : number = minContainersWorkerNode.value.containers
+    let workernodePods : number = minContainersWorkerNode.value.pods
+    const workernodeDeployments : number = minContainersWorkerNode.value.deployments
+
+    let containerList : ContainerMetadata[] = [];
+    for(var containerInfo of containerInfoList){
+      const containerName = containerInfo.name;
+      const ImageName = containerInfo.image;
+
+      /*API to kubelet : Run Container*/
+      const metadata = await this.appService.runContainerWithImage(workernodeIp, workernodePort, containerName, ImageName);
+
+      const containerMetadata : ContainerMetadata = {
+        name : containerName,
+        pod : podName,
+        deployment : null,
+        workernode : workernodeName,
+        metadata : metadata
+      }
+      containerList.push(containerMetadata);
+    }
+    
+    /*API to ETCD : Update the selected worker node's container count in ETCD*/
+    const containernumber : number = containerInfoList.length;
+    workernodeContainers=workernodeContainers+containernumber;
+    workernodePods=workernodePods+1;
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
+
+    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
+    await this.podService.addPodInfo(podName, null, workernodeName, containernumber, containerList)
+
+    return `${podName}(container name) is running in ${workernodeName}(worker-node name)`;
   }
 
   @Post('/worker')

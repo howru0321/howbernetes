@@ -11,15 +11,21 @@ export class ContainerService {
     ) {}
 
     async addContainerInfo(name: string, pod: string, deployment : string, workernode: string, metadata : string): Promise<string> {
+        const containerMetadata : ContainerMetadata =
+        {
+            name : name,
+            pod : pod,
+            deployment : deployment,
+            workernode : workernode,
+            metadata : metadata
+        }
+        
         const response = await lastValueFrom(
             this.httpService.post(
-                'http://howbe-db-container:3001/container',
+                'http://howbe-db-server:3001/container',
                 {
                     name,
-                    pod,
-                    deployment,
-                    workernode,
-                    metadata
+                    containerMetadata
                 },
                 {
                     headers: {
@@ -34,7 +40,7 @@ export class ContainerService {
     async removeContainerInfo(containerName: string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.delete(
-                `http://howbe-db-container:3001/container?name=${containerName}`
+                `http://howbe-db-server:3001/container?name=${containerName}`
             ),
         );
         return response.data;
@@ -42,14 +48,14 @@ export class ContainerService {
 
     async getAllContainerList(): Promise<Container[]> {
         const response = await lastValueFrom(
-            this.httpService.get('http://howbe-db-container:3001/container/getall'),
+            this.httpService.get('http://howbe-db-server:3001/container/getall'),
         );
         return response.data;
     }
 
     async getContainer(containerName : string): Promise<Container> {
         const response = await lastValueFrom(
-            this.httpService.get(`http://howbe-db-container:3001/container/get?name=${containerName}`),
+            this.httpService.get(`http://howbe-db-server:3001/container/get?name=${containerName}`),
         );
         return response.data;
     }
