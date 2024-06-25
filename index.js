@@ -272,28 +272,52 @@ program
       return;
     }
 
-    let podName;
-    let containerInfolist;
+    let data
     try {
       const fileContents = fs.readFileSync(filePath, 'utf8');
-      const data = yaml.load(fileContents);
+      data = yaml.load(fileContents);
 
+      kind=data.kind
       podName= data.metadata.name;
       containerInfolist = data.spec.containers;
     } catch (error) {
       console.error('Error reading or parsing YAML file:', error.message);
     }
 
-    try {
-      const response = await axios.post(`http://${ip}:${port}/create`, {
-        podName,
-        containerInfolist
-      });
-      console.log('Response:', response.data);
-    } catch (error) {
-      console.error('Error:', error.message);
-    }
+    kind = data.kind
+    if(kind=="Pod"){
+      const podName= data.metadata.name;
+      const containerInfolist = data.spec.containers;
 
+      try {
+        const response = await axios.post(`http://${ip}:${port}/create/pod`, {
+          podName,
+          containerInfolist
+        });
+        console.log('Response:', response.data);
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+    } else if(kind == "Deployment"){
+      const deployName=data.metadata.name
+      const replicas = data.spec.replicas
+      const podName = data.spec.template.metadata.name
+      const containerInfolist = data.spec.template.spec.containers
+
+      try {
+        const response = await axios.post(`http://${ip}:${port}/create/deploy`, {
+          deployName: deployName,
+          replicas: replicas,
+          podInfo:{
+            podName : podName,
+            containerInfolist : containerInfolist
+          }
+        });
+        console.log('Response:', response.data);
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+    }
   });
 
 // Delete command
