@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Query, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
 import { AppService } from './app.service';
 import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
@@ -9,6 +9,7 @@ import { Container } from './entities/container.entity';
 import { CreatePodDto } from './create-pod.dto';
 import { ContainerInfo } from './create-pod.dto';
 import { ContainerMetadata } from './interfaces/metadata.interface';
+import { Pod } from './entities/pod.entity';
 
 
 @Controller()
@@ -92,7 +93,7 @@ export class AppController {
     const workernodeDeployments : number = WorkerNodeInfo.value.deployments
 
     /*API to kubelet : Remove container*/
-    const metadata = await this.appService.removeContainer(workernodeIp, workernodePort, container);
+    await this.appService.removeContainer(workernodeIp, workernodePort, container);
 
     /*API to ETCD : Update the worker node's container count in ETCD*/
     workernodeContainers=workernodeContainers-1;
@@ -146,6 +147,42 @@ export class AppController {
     await this.podService.addPodInfo(podName, null, workernodeName, containernumber, containerList)
 
     return `${podName}(container name) is running in ${workernodeName}(worker-node name)`;
+  }
+
+  @Delete('/delete')
+    async deletePod(@Query('name') podName) {
+
+    /*API to ETCD : Get container information from ETCD*/
+    const podInfo : Pod = await this.podService.getPod(podName);
+    const workernodeName = podInfo.value.workernode;
+    
+    /*API to ETCD : Get worker nodes information which was binding this container from ETCD*/
+    const WorkerNodeInfo : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
+    
+    const workernodeIp : string = WorkerNodeInfo.value.ip
+    const workernodePort : string = WorkerNodeInfo.value.port
+    let workernodeContainers : number = WorkerNodeInfo.value.containers
+    let workernodePods : number = WorkerNodeInfo.value.pods
+    const workernodeDeployments : number = WorkerNodeInfo.value.deployments
+
+    /*API to kubelet : Remove container*/
+    const containerList : ContainerMetadata[] = podInfo.value.containerlist
+    for(var container of containerList){
+      const containerName = container.name
+      await this.appService.removeContainer(workernodeIp, workernodePort, containerName);
+    }
+
+
+    /*API to ETCD : Update the worker node's container count in ETCD*/
+    const containerNumber : number = containerList.length;
+    workernodeContainers=workernodeContainers-containerNumber;
+    workernodePods=workernodePods-1
+    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods, workernodeDeployments);
+
+    /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
+    await this.podService.removePodInfo(podName)
+
+    return `${podName}(pod name) is removed in ${workernodeName}(worker-node name)`;
   }
 
   @Post('/worker')

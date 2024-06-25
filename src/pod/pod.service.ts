@@ -38,4 +38,27 @@ export class PodService {
         );
         return response.data;
     }
+
+    async removePodInfo(podName: string): Promise<string> {
+        const response = await lastValueFrom(
+            this.httpService.delete(
+                `http://howbe-db-server:3001/pod?name=${podName}`
+            ),
+        );
+        return response.data;
+    }
+
+    async getAllPodList(): Promise<Pod[]> {
+        const response = await lastValueFrom(
+            this.httpService.get('http://howbe-db-server:3001/pod/getall'),
+        );
+        return response.data;
+    }
+
+    async getPod(podName : string): Promise<Pod> {
+        const response = await lastValueFrom(
+            this.httpService.get(`http://howbe-db-server:3001/pod/get?name=${podName}`),
+        );
+        return response.data;
+    }
 }
