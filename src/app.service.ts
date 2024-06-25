@@ -13,12 +13,11 @@ export class AppService {
     return 'Hello World!';
   }
 
-  async runContainerWithImage(workernodeIp : string, workernodePort : string, container : string, image : string):Promise<string> {
+  async runContainerWithImage(workernodeIp : string, workernodePort : string, image : string):Promise<string> {
     const response = await lastValueFrom(
         this.httpService.post(
             `http://${workernodeIp}:${workernodePort}/run-container`,
             {
-              container,
               image
             },
             {
@@ -30,12 +29,12 @@ export class AppService {
     );
     return response.data;
 }
-  async removeContainer(workernodeIp : string, workernodePort : string, container : string):Promise<string> {
+  async removeContainer(workernodeIp : string, workernodePort : string, containerId : string):Promise<string> {
     const response = await lastValueFrom(
         this.httpService.post(
             `http://${workernodeIp}:${workernodePort}/remove-container`,
             {
-              container
+              containerId
             },
             {
                 headers: {

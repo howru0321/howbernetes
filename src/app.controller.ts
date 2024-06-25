@@ -10,6 +10,7 @@ import { CreateDeployDto } from './interfaces/metadata.interface'
 import { ContainerInfo } from './interfaces/metadata.interface';
 import { ContainerMetadata } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
+import { ContainerIdInfo } from './interfaces/metadata.interface'
 
 
 @Controller()
@@ -30,7 +31,7 @@ export class AppController {
     return minContainersWorkerNode
   }
 
-  private async savePodInfoInDB(containerlist : ContainerInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[]){
+  private async savePodInfoInDB(containerlist : ContainerIdInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[], deployment : string){
     /*API to ETCD : Update the selected worker node's container count in ETCD*/
     const containernumber : number = containerlist.length;
     workernodeContainers=workernodeContainers+containernumber;
@@ -38,28 +39,7 @@ export class AppController {
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.podService.addPodInfo(podName, null, workernodeName, containernumber, containerlist, containerMetadataList)
-  }
-
-  private async runContainers(containerlist : ContainerInfo[], workernodeIp : string, workernodePort : string, podName : string, workernodeName : string) : Promise<ContainerMetadata[]>{
-    let containerMetadataList : ContainerMetadata[] = [];
-    for(var containerInfo of containerlist){
-      const containerName = containerInfo.name;
-      const ImageName = containerInfo.image;
-
-      /*API to kubelet : Run Container*/
-      const metadata = await this.appService.runContainerWithImage(workernodeIp, workernodePort, containerName, ImageName);
-
-      const containerMetadata : ContainerMetadata = {
-        name : containerName,
-        pod : podName,
-        deployment : null,
-        workernode : workernodeName,
-        metadata : metadata
-      }
-      containerMetadataList.push(containerMetadata);
-    }
-    return containerMetadataList
+    await this.podService.addPodInfo(podName, deployment, workernodeName, containernumber, containerlist, containerMetadataList)
   }
 
   @Get()
@@ -92,10 +72,35 @@ export class AppController {
     let workernodeContainers : number = minContainersWorkerNode.value.containers
     let workernodePods : number = minContainersWorkerNode.value.pods
 
-    const containerMetadataList : ContainerMetadata[] = await this.runContainers(containerlist, workernodeIp, workernodePort, podName, workernodeName)
-    await this.savePodInfoInDB(containerlist, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList)
+    //const containerMetadataList : ContainerMetadata[] = await this.runContainers(containerlist, workernodeIp, workernodePort, podName, workernodeName)
+    
+    let containerMetadataList : ContainerMetadata[] = [];
+    let containerIdList : ContainerIdInfo[] = [];
+    for(var containerInfo of containerlist){
+      const containerName = containerInfo.name;
+      const ImageName = containerInfo.image;
 
-    //await this.runContainersetDB(podName, containerlist, minContainersWorkerNode, null)
+      /*API to kubelet : Run Container*/
+      const containerId = await this.appService.runContainerWithImage(workernodeIp, workernodePort, ImageName);
+
+      const containerMetadata : ContainerMetadata = {
+        id : containerId,
+        name : containerName,
+        image : ImageName,
+        pod : podName,
+        deployment : null,
+        workernode : workernodeName
+      }
+      containerMetadataList.push(containerMetadata);
+
+      const containerIdInfo : ContainerIdInfo = {
+        id : containerId,
+        metadata : containerInfo
+      }
+      containerIdList.push(containerIdInfo)
+    }
+    
+    await this.savePodInfoInDB(containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, null)
 
     return `${podName}(container name) is running in ${workernodeName}(worker-node name)`;
   }
@@ -116,15 +121,15 @@ export class AppController {
     let workernodePods : number = WorkerNodeInfo.value.pods
 
     /*API to kubelet : Remove container*/
-    const containerList : ContainerInfo[] = podInfo.value.containerlist
-    for(var container of containerList){
-      const containerName = container.name
-      await this.appService.removeContainer(workernodeIp, workernodePort, containerName);
+    const containerIdList : ContainerIdInfo[] = podInfo.value.containeridlist
+    for(var container of containerIdList){
+      const containerId = container.id
+      await this.appService.removeContainer(workernodeIp, workernodePort, containerId);
     }
 
 
     /*API to ETCD : Update the worker node's container count in ETCD*/
-    const containerNumber : number = containerList.length;
+    const containerNumber : number = containerIdList.length;
     workernodeContainers=workernodeContainers-containerNumber;
     workernodePods=workernodePods-1
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
