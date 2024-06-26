@@ -13,22 +13,22 @@ export class ReplicasetService {
         private readonly httpService: HttpService
     ) {}
 
-    async addReplicasetInfo(name: string, replicas : number, matchLabels : Label[], podidlist : string[], podtemplate : PodTemplate): Promise<string> {
+    async updateReplicasetState(replicasetName: string, replicas : number, matchLabels : Label[], podIdList : string[], podTemplate : PodTemplate): Promise<string> {
         const replicasetMetadata : ReplicasetMetadata =
         {
-            name : name,
+            name : replicasetName,
             replicas : replicas,
             matchlabel : matchLabels,
-            podidlist : podidlist,
-            podtemplate : podtemplate
+            podidlist : podIdList,
+            podtemplate : podTemplate
         }
         
         const response = await lastValueFrom(
             this.httpService.post(
                 'http://howbe-db-server:3001/replicaset',
                 {
-                    name,
-                    replicasetMetadata
+                    replicasetName : replicasetName,
+                    replicasetMetadata : replicasetMetadata
                 },
                 {
                     headers: {
@@ -40,7 +40,7 @@ export class ReplicasetService {
         return response.data;
     }
 
-    async removeReplicasetInfo(replicasetName: string): Promise<string> {
+    async removeReplicase(replicasetName: string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.delete(
                 `http://howbe-db-server:3001/replicaset?name=${replicasetName}`

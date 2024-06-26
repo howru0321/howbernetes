@@ -8,11 +8,8 @@ export interface WorkerNodeMetadata {
 }
 
 export interface ContainerMetadata {
-  id : string;
   name : string;
   image : string;
-  pod : string;
-  replicaset : string;
   workernode : string;
 }
 

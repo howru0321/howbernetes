@@ -13,6 +13,51 @@ export class PodService {
         private readonly httpService: HttpService
     ) {}
 
+    async InitPodState(podId : string, podName: string, podLabels : Label[], workernodeName: string, containerIdList : ContainerIdInfo[]): Promise<string> {
+        const podMetadata : PodMetadata =
+        {
+            name : podName,
+            podLabels : podLabels,
+            workernode : workernodeName,
+            containers : 0,
+            containeridlist : containerIdList
+        }
+        
+        const response = await lastValueFrom(
+            this.httpService.post(
+                'http://howbe-db-server:3001/pod',
+                {
+                    id : podId,
+                    podMetadata : podMetadata
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                },
+            ),
+        );
+        return response.data;
+    }
+
+    async updatePodState(podId : string, podMetadata : PodMetadata): Promise<string> {
+        const response = await lastValueFrom(
+            this.httpService.post(
+                'http://howbe-db-server:3001/pod',
+                {
+                    podId : podId,
+                    podMetadata : podMetadata
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                },
+            ),
+        );
+        return response.data;
+    }
+
     async addPodInfo(id : string, name: string, podLabels : Label[], workernode: string, containers : number, containeridlist : ContainerIdInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
         const podMetadata : PodMetadata =
         {
@@ -41,7 +86,7 @@ export class PodService {
         return response.data;
     }
 
-    async removePodInfo(podId: string): Promise<string> {
+    async removePod(podId: string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.delete(
                 `http://howbe-db-server:3001/pod?id=${podId}`
