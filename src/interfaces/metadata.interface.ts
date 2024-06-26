@@ -18,7 +18,7 @@ export interface ContainerMetadata {
 
 export interface PodMetadata {
   name : string;
-  replicaset : string;
+  podLabels : Label[];
   workernode : string;
   containers : number;
   containeridlist : ContainerIdInfo[];
@@ -27,6 +27,7 @@ export interface PodMetadata {
 export interface ReplicasetMetadata {
   name : string;
   replicas : number;
+  matchlabel : Label[];
   podidlist : string[];
   podtemplate : PodTemplate;
 }
@@ -38,7 +39,13 @@ export interface PodTemplate {
 
 export class CreatePodDto {
   podName: string;
+  podLabels : Label[];
   containerInfolist: ContainerInfo[];
+}
+
+export class Label {
+  key: string;
+  value: string;
 }
 
 export class ContainerInfo {
@@ -53,6 +60,7 @@ export class ContainerIdInfo {
 
 export class CreateReplicasetDto {
   replicasetName: string;
+  matchLabels : Label[];
   replicas: number;
   podInfo : CreatePodDto;
 }

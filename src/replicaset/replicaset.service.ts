@@ -36,10 +36,6 @@ export class ReplicasetService {
       async delete(key: string): Promise<Replicaset> {
         try{
           const replicaset : Replicaset = await this.get(key)
-          const podIdList : string[] = replicaset.value.podidlist
-          for(var podId of podIdList){
-            await this.podService.delete(podId)
-          }
           return await this.replicasetRepository.remove(replicaset);
         } catch (error) {
           console.error(error);

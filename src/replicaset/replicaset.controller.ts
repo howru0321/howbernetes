@@ -10,13 +10,13 @@ export class ReplicasetController {
     @Post()
     async create(@Body() body: { name: string, replicasetMetadata : ReplicasetMetadata}) {
         const response = await this.replicasetService.create(body.name, body.replicasetMetadata);
-        return `Successful add ${response.key} to pod list`;
+        return `Successful add ${response.key} to replicaset list`;
     }
 
     @Delete()
     async delete(@Query('name') replicasetName){
         const response = await this.replicasetService.delete(replicasetName);
-        return `Successful remove ${response.key} to pod list`;
+        return `Successful remove ${response.key} to replicaset list`;
     }
 
     @Get('/getall')
@@ -25,8 +25,8 @@ export class ReplicasetController {
     }
 
     @Get('/get')
-    async get(@Query('name') podName) : Promise<Replicaset> {
-      return await this.replicasetService.get(podName);
+    async get(@Query('name') replicasetName) : Promise<Replicaset> {
+      return await this.replicasetService.get(replicasetName);
     }
 
 }
