@@ -125,49 +125,6 @@ program
     }
   });
 
-// Deploy command
-program
-  .command('deploy <file>')
-  .description('Deploy a container using a YAML configuration file')
-  .action(async (file) => {
-    let ip, port;
-    try {
-      ({ ip, port } = getMasterNodeConfig());
-    } catch (error) {
-      console.error(error.message);
-      return;
-    }
-
-    try {
-        const fileContent = fs.readFileSync(file, 'utf8');
-
-        const response = await axios.post(`http://${ip}:${port}/deploy`, { data: fileContent }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-
-        console.log('Deployment response:', response.data);
-      } catch (error) {
-        console.error('Error during deployment:', error.message);
-      }
-  });
-
-// Scale command
-program
-  .command('scale <deployment>/<container>')
-  .description('Scale the number of replicas for a specific container in a deployment')
-  .option('--replicas <number>', 'Number of replicas', '1')
-  .action((resource, options) => {
-    const [deployment, container] = resource.split('/');
-    const replicas = options.replicas;
-    if (!deployment || !container) {
-      console.error('Please provide both deployment and container names in the format howbectl <deployment>/<container>');
-      return;
-    }
-
-    console.log(`Scaling deployment "${deployment}" and container "${container}" to ${replicas} replicas.`);
-  });
 
 // Run command
 program
@@ -185,7 +142,7 @@ program
 
     const image = options.image;
     if (!container) {
-      console.error('Please provide both deployment and container names in the format howbectl <container>');
+      console.error('Please provide both image and container names in the format howbectl <container>');
       return;
     }
     if (!image) {
@@ -224,7 +181,7 @@ program
     }
     
     if (!container) {
-      console.error('Please provide both deployment and container names in the format howbectl <container>');
+      console.error('Please provide container name in the format howbectl <container>');
       return;
     }
 
@@ -282,30 +239,60 @@ program
 
     kind = data.kind
     if(kind=="Pod"){
-      const podName= data.metadata.name;
+      const podName = data.metadata.name;
+      const labels = data.metadata.labels;
+      const podLabels = [];
+      for (const [key, value] of Object.entries(labels)) {
+        const podLabel = {
+          key : key,
+          value : value
+        }
+        podLabels.push(podLabel)
+      }
       const containerInfolist = data.spec.containers;
 
       try {
         const response = await axios.post(`http://${ip}:${port}/create/pod`, {
           podName,
+          podLabels,
           containerInfolist
         });
         console.log('Response:', response.data);
       } catch (error) {
         console.error('Error:', error.message);
       }
-    } else if(kind == "Deployment"){
-      const deployName=data.metadata.name
+    } else if(kind == "RepliaSet"){
+      const replicasetName=data.metadata.name
+      const matchlables = data.spec.selector.matchLables;
+      const matchLabels = [];
+      for (const [key, value] of Object.entries(matchlables)) {
+        const matchLabel = {
+          key : key,
+          value : value
+        }
+        matchLabels.push(matchLabel)
+      }
       const replicas = data.spec.replicas
       const podName = data.spec.template.metadata.name
+      const labels = data.spec.template.metadata.labels;
+      const podLabels = [];
+      for (const [key, value] of Object.entries(labels)) {
+        const podLabel = {
+          key : key,
+          value : value
+        }
+        podLabels.push(podLabel)
+      }
       const containerInfolist = data.spec.template.spec.containers
 
       try {
-        const response = await axios.post(`http://${ip}:${port}/create/deploy`, {
-          deployName: deployName,
+        const response = await axios.post(`http://${ip}:${port}/create/replicaset`, {
+          replicasetName: replicasetName,
+          matchLabels,
           replicas: replicas,
           podInfo:{
             podName : podName,
+            podLabels,
             containerInfolist : containerInfolist
           }
         });
@@ -316,31 +303,47 @@ program
     }
   });
 
-// Delete command
-program
-  .command('delete <pod>')
-  .description('Delete pod')
-  .action(async (pod) => {
-    let ip, port;
-    try {
-      ({ ip, port } = getMasterNodeConfig());
-    } catch (error) {
-      console.error(error.message);
-      return;
-    }
-    
-    if (!pod) {
-      console.error('Please provide pod name in the format howbectl delete <container>');
-      return;
-    }
+// Define the delete command
+const deleteCommand = program.command('delete').description('Delete object');
 
-    try {
-      const response = await axios.delete(`http://${ip}:${port}/delete?name=${pod}`);
-      console.log('Response:', response.data);
-    } catch (error) {
-      console.error('Error:', error.message);
-    }
+// Define the delete pod command
+deleteCommand
+  .command('pod <name>')
+  .description('Delete a pod')
+  .action(async (name) => {
+    await deleteObject('pod', name);
   });
+
+// Define the delete replicaset command
+deleteCommand
+  .command('replicaset <name>')
+  .description('Delete a replicaset')
+  .action(async (name) => {
+    await deleteObject('replicaset', name);
+  });
+
+// Generic function to delete an object
+async function deleteObject(type, name) {
+  let ip, port;
+  try {
+    ({ ip, port } = getMasterNodeConfig());
+  } catch (error) {
+    console.error(error.message);
+    return;
+  }
+
+  if (!name) {
+    console.error(`Please provide the ${type} name in the format howbectl delete ${type} <name>`);
+    return;
+  }
+
+  try {
+    const response = await axios.delete(`http://${ip}:${port}/delete/${type}?&name=${name}`);
+    console.log('Response:', response.data);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+}
 
 program
   .command('config')
