@@ -6,13 +6,13 @@ import { PodService } from './pod/pod.service'
 import { WorkerNode } from './entities/workernode.entity';
 import { Container } from './entities/container.entity';
 import { CreatePodDto } from './interfaces/metadata.interface';
-import { CreateDeployDto } from './interfaces/metadata.interface'
+import { CreateReplicasetDto } from './interfaces/metadata.interface'
 import { ContainerInfo } from './interfaces/metadata.interface';
 import { ContainerMetadata } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
 import { ContainerIdInfo } from './interfaces/metadata.interface'
 import { v4 as uuidv4 } from 'uuid';
-import { DeploymentService } from './deployment/deployment.service'
+import { ReplicasetService } from './replicaset/replicaset.service'
 import { PodTemplate } from './interfaces/metadata.interface'
 
 
@@ -23,7 +23,7 @@ export class AppController {
     private readonly workernodeService: WorkernodeService,
     private readonly containerService: ContainerService,
     private readonly podService: PodService,
-    private readonly deploymentService: DeploymentService
+    private readonly replicasetService: ReplicasetService
   ) {}
 
   private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
@@ -35,7 +35,7 @@ export class AppController {
     return minContainersWorkerNode
   }
 
-  private async savePodInfoInDB(podId : string, containerlist : ContainerIdInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[], deployName : string){
+  private async savePodInfoInDB(podId : string, containerlist : ContainerIdInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[], replicasetName : string){
     /*API to ETCD : Update the selected worker node's container count in ETCD*/
     const containernumber : number = containerlist.length;
     workernodeContainers=workernodeContainers+containernumber;
@@ -43,7 +43,7 @@ export class AppController {
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.podService.addPodInfo(podId, podName, deployName, workernodeName, containernumber, containerlist, containerMetadataList)
+    await this.podService.addPodInfo(podId, podName, replicasetName, workernodeName, containernumber, containerlist, containerMetadataList)
   }
 
   @Get()
@@ -51,9 +51,9 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Post('/create/deploy')
-  async createDeploy(@Body() body: CreateDeployDto) {
-    const deployName : string = body.deployName
+  @Post('/create/replicaset')
+  async createReplicaset(@Body() body: CreateReplicasetDto) {
+    const replicasetName : string = body.replicasetName
     const replicas : number = body.replicas
     const podName : string = body.podInfo.podName
     const containerlist : ContainerInfo[] = body.podInfo.containerInfolist
@@ -83,7 +83,7 @@ export class AppController {
           name : containerName,
           image : ImageName,
           pod : podName,
-          deployment : null,
+          replicaset : replicasetName,
           workernode : workernodeName
         }
         containerMetadataList.push(containerMetadata);
@@ -104,16 +104,18 @@ export class AppController {
       const podId : string = podName+newUUID;
       podIdList.push(podId);
 
-      await this.savePodInfoInDB(podId, containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, deployName)
+      await this.savePodInfoInDB(podId, containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, replicasetName)
     }
+    console.log("2")
 
     const podTemplate : PodTemplate = {
       name : podName,
       containerlist : containerlist
     }
-    await this.deploymentService.addDeployInfo(deployName, replicas, podIdList, podTemplate)
+    await this.replicasetService.addReplicasetInfo(replicasetName, replicas, podIdList, podTemplate)
 
-    return `${deployName}(deploy name) is running`
+    console.log("3")
+    return `${replicasetName}(replicaset name) is running`
   }
 
   @Post('/create/pod')
@@ -143,7 +145,7 @@ export class AppController {
         name : containerName,
         image : ImageName,
         pod : podName,
-        deployment : null,
+        replicaset : null,
         workernode : workernodeName
       }
       containerMetadataList.push(containerMetadata);

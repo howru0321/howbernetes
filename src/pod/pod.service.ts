@@ -13,11 +13,11 @@ export class PodService {
         private readonly httpService: HttpService
     ) {}
 
-    async addPodInfo(id : string, name: string, deployment : string, workernode: string, containers : number, containeridlist : ContainerIdInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
+    async addPodInfo(id : string, name: string, replicaset : string, workernode: string, containers : number, containeridlist : ContainerIdInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
         const podMetadata : PodMetadata =
         {
             name : name,
-            deployment : deployment,
+            replicaset : replicaset,
             workernode : workernode,
             containers : containers,
             containeridlist : containeridlist

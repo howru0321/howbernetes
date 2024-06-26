@@ -12,19 +12,19 @@ export interface ContainerMetadata {
   name : string;
   image : string;
   pod : string;
-  deployment : string;
+  replicaset : string;
   workernode : string;
 }
 
 export interface PodMetadata {
   name : string;
-  deployment : string;
+  replicaset : string;
   workernode : string;
   containers : number;
   containeridlist : ContainerIdInfo[];
 }
 
-export interface DeploymentMetadata {
+export interface ReplicasetMetadata {
   name : string;
   replicas : number;
   podidlist : string[];
@@ -34,12 +34,6 @@ export interface DeploymentMetadata {
 export interface PodTemplate {
   name : string;
   containerlist : ContainerInfo[];
-}
-
-export class CreateDeploymentDto {
-  deployName: string;
-  replicas : number;
-  podInfo : CreatePodDto;
 }
 
 export class CreatePodDto {
@@ -57,8 +51,8 @@ export class ContainerIdInfo {
   metadata : ContainerInfo;
 }
 
-export class CreateDeployDto {
-  deployName: string;
+export class CreateReplicasetDto {
+  replicasetName: string;
   replicas: number;
   podInfo : CreatePodDto;
 }
