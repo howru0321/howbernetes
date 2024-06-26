@@ -345,11 +345,42 @@ async function deleteObject(type, name) {
   }
 }
 
-program
-  .command('config')
-  .description('Check current configuration')
-  .action(() => {
-    console.log(config.all);
+const scaleCommand = program.command('scale').description('Scale an object');
+
+scaleCommand
+  .command('replicaset <name>')
+  .description('Scale a replicaset')
+  .option('--replicas <number>', 'Number of replicas')
+  .action(async (name, options) => {
+    const replicas = options.replicas;
+    if (!replicas) {
+      console.error('Error: --replicas option is required');
+      process.exit(1);
+    }
+    await scaleObject(name, replicas);
   });
+
+  // Generic function to delete an object
+async function scaleObject(name, replicas) {
+  let ip, port;
+  try {
+    ({ ip, port } = getMasterNodeConfig());
+  } catch (error) {
+    console.error(error.message);
+    return;
+  }
+
+  if (!name) {
+    console.error(`Please provide the replicaset name in the format howbectl scale replicaset --replicas=<?> <name>`);
+    return;
+  }
+
+  try {
+    const response = await axios.patch(`http://${ip}:${port}/scale/replicaset?&name=${name}&replicas=${replicas}`);
+    console.log('Response:', response.data);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+}
 
 program.parse(process.argv);
