@@ -276,10 +276,6 @@ program
     try {
       const fileContents = fs.readFileSync(filePath, 'utf8');
       data = yaml.load(fileContents);
-
-      kind=data.kind
-      podName= data.metadata.name;
-      containerInfolist = data.spec.containers;
     } catch (error) {
       console.error('Error reading or parsing YAML file:', error.message);
     }
