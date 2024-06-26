@@ -26,8 +26,20 @@ export interface PodMetadata {
 
 export interface DeploymentMetadata {
   name : string;
-  replica : number;
-  podname : string;
+  replicas : number;
+  podidlist : string[];
+  podtemplate : PodTemplate;
+}
+
+export interface PodTemplate {
+  name : string;
+  containerlist : ContainerInfo[];
+}
+
+export class CreateDeploymentDto {
+  deployName: string;
+  replicas : number;
+  podInfo : CreatePodDto;
 }
 
 export class CreatePodDto {

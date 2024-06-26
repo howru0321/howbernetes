@@ -11,6 +11,9 @@ import { ContainerInfo } from './interfaces/metadata.interface';
 import { ContainerMetadata } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
 import { ContainerIdInfo } from './interfaces/metadata.interface'
+import { v4 as uuidv4 } from 'uuid';
+import { DeploymentService } from './deployment/deployment.service'
+import { PodTemplate } from './interfaces/metadata.interface'
 
 
 @Controller()
@@ -19,7 +22,8 @@ export class AppController {
     private readonly appService: AppService,
     private readonly workernodeService: WorkernodeService,
     private readonly containerService: ContainerService,
-    private readonly podService: PodService
+    private readonly podService: PodService,
+    private readonly deploymentService: DeploymentService
   ) {}
 
   private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
@@ -31,7 +35,7 @@ export class AppController {
     return minContainersWorkerNode
   }
 
-  private async savePodInfoInDB(containerlist : ContainerIdInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[], deployment : string){
+  private async savePodInfoInDB(podId : string, containerlist : ContainerIdInfo[], workernodeContainers : number, workernodePods : number, workernodeName : string, workernodeIp : string, workernodePort : string, podName : string, containerMetadataList : ContainerMetadata[], deployName : string){
     /*API to ETCD : Update the selected worker node's container count in ETCD*/
     const containernumber : number = containerlist.length;
     workernodeContainers=workernodeContainers+containernumber;
@@ -39,7 +43,7 @@ export class AppController {
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.podService.addPodInfo(podName, deployment, workernodeName, containernumber, containerlist, containerMetadataList)
+    await this.podService.addPodInfo(podId, podName, deployName, workernodeName, containernumber, containerlist, containerMetadataList)
   }
 
   @Get()
@@ -54,9 +58,62 @@ export class AppController {
     const podName : string = body.podInfo.podName
     const containerlist : ContainerInfo[] = body.podInfo.containerInfolist
 
-    const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
+    let podIdList : string[] = []
+    const existingUUIDs = new Set<string>();
+    for(let i=0;i<replicas;i++){
+      const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
     
-    const workernodeName : string = minContainersWorkerNode.key
+      const workernodeName : string = minContainersWorkerNode.key
+      const workernodeIp : string = minContainersWorkerNode.value.ip
+      const workernodePort : string = minContainersWorkerNode.value.port
+      let workernodeContainers : number = minContainersWorkerNode.value.containers
+      let workernodePods : number = minContainersWorkerNode.value.pods
+      
+      let containerMetadataList : ContainerMetadata[] = [];
+      let containerIdList : ContainerIdInfo[] = [];
+      for(var containerInfo of containerlist){
+        const containerName = containerInfo.name;
+        const ImageName = containerInfo.image;
+
+        /*API to kubelet : Run Container*/
+        const containerId = await this.appService.runContainerWithImage(workernodeIp, workernodePort, ImageName);
+
+        const containerMetadata : ContainerMetadata = {
+          id : containerId,
+          name : containerName,
+          image : ImageName,
+          pod : podName,
+          deployment : null,
+          workernode : workernodeName
+        }
+        containerMetadataList.push(containerMetadata);
+
+        const containerIdInfo : ContainerIdInfo = {
+          id : containerId,
+          metadata : containerInfo
+        }
+        containerIdList.push(containerIdInfo)
+      }
+      
+      let newUUID: string;
+      do {
+          newUUID = uuidv4();
+      } while (existingUUIDs.has(newUUID));
+
+      existingUUIDs.add(newUUID);
+      const podId : string = podName+newUUID;
+      podIdList.push(podId);
+
+      await this.savePodInfoInDB(podId, containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, deployName)
+    }
+
+    const podTemplate : PodTemplate = {
+      name : podName,
+      containerlist : containerlist
+    }
+    await this.deploymentService.addDeployInfo(deployName, replicas, podIdList, podTemplate)
+
+    return `${deployName}(deploy name) is running`
   }
 
   @Post('/create/pod')
@@ -71,8 +128,6 @@ export class AppController {
     const workernodePort : string = minContainersWorkerNode.value.port
     let workernodeContainers : number = minContainersWorkerNode.value.containers
     let workernodePods : number = minContainersWorkerNode.value.pods
-
-    //const containerMetadataList : ContainerMetadata[] = await this.runContainers(containerlist, workernodeIp, workernodePort, podName, workernodeName)
     
     let containerMetadataList : ContainerMetadata[] = [];
     let containerIdList : ContainerIdInfo[] = [];
@@ -100,16 +155,18 @@ export class AppController {
       containerIdList.push(containerIdInfo)
     }
     
-    await this.savePodInfoInDB(containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, null)
+    let newUUID: string = uuidv4();
+    const podId = podName+newUUID;
+    await this.savePodInfoInDB(podId, containerIdList, workernodeContainers, workernodePods, workernodeName, workernodeIp, workernodePort, podName, containerMetadataList, null)
 
     return `${podName}(container name) is running in ${workernodeName}(worker-node name)`;
   }
 
   @Delete('/delete')
-    async deletePod(@Query('name') podName) {
+    async deletePod(@Query('name') podId) {
 
     /*API to ETCD : Get container information from ETCD*/
-    const podInfo : Pod = await this.podService.getPod(podName);
+    const podInfo : Pod = await this.podService.getPod(podId);
     const workernodeName = podInfo.value.workernode;
     
     /*API to ETCD : Get worker nodes information which was binding this container from ETCD*/
@@ -135,9 +192,9 @@ export class AppController {
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     /*API to ETCD : Store the container information and bind it to the worker node in the ETCD*/
-    await this.podService.removePodInfo(podName)
+    await this.podService.removePodInfo(podId)
 
-    return `${podName}(pod name) is removed in ${workernodeName}(worker-node name)`;
+    return `${podId}(pod id) is removed in ${workernodeName}(worker-node name)`;
   }
 
   @Post('/worker')

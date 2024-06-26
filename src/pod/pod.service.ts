@@ -13,7 +13,7 @@ export class PodService {
         private readonly httpService: HttpService
     ) {}
 
-    async addPodInfo(name: string, deployment : string, workernode: string, containers : number, containeridlist : ContainerIdInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
+    async addPodInfo(id : string, name: string, deployment : string, workernode: string, containers : number, containeridlist : ContainerIdInfo[], containerMetadataList : ContainerMetadata[] ): Promise<string> {
         const podMetadata : PodMetadata =
         {
             name : name,
@@ -27,7 +27,7 @@ export class PodService {
             this.httpService.post(
                 'http://howbe-db-server:3001/pod',
                 {
-                    name,
+                    id,
                     podMetadata,
                     containerMetadataList
                 },
@@ -41,10 +41,10 @@ export class PodService {
         return response.data;
     }
 
-    async removePodInfo(podName: string): Promise<string> {
+    async removePodInfo(podId: string): Promise<string> {
         const response = await lastValueFrom(
             this.httpService.delete(
-                `http://howbe-db-server:3001/pod?name=${podName}`
+                `http://howbe-db-server:3001/pod?id=${podId}`
             ),
         );
         return response.data;
