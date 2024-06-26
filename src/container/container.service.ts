@@ -33,12 +33,11 @@ export class ContainerService {
 
     async delete(key: string): Promise<Container> {
       try{
-        const container : Container = await this.get(key)
-          return await this.containerRepository.remove(container);
-          //return await this.containerRepository.delete({key:key});
+        const container : Container = await this.get(key);
+        return await this.containerRepository.remove(container);
       } catch (error) {
           console.error(error);
-          throw new Error('Could not get');
+          throw new Error('Could not delete');
       }
     }
 

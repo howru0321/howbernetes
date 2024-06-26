@@ -16,12 +16,18 @@ export class PodService {
         private readonly containerService: ContainerService
     ){}
 
-    async create(key: string, value: PodMetadata, containerMetadataList : ContainerMetadata[]): Promise<Pod> {
-      /*container db에 container info 저장 */
-      for(const container of containerMetadataList){
-          await this.containerService.create(container.id, container)
-      }
+    async create(key: string, value: PodMetadata): Promise<Pod> {
+      try{
+        const container = this.podRepository.create({ key, value });
+        await this.podRepository.save(container);
+        return container
+      } catch (error) {
+        console.error('Error saving key-value pair:', error);
+        throw new Error('Could not save key-value pair');
+        }
+    }
 
+    async update(key: string, value: PodMetadata): Promise<Pod> {
       try{
         const container = this.podRepository.create({ key, value });
         await this.podRepository.save(container);
@@ -43,15 +49,11 @@ export class PodService {
 
     async delete(key: string): Promise<Pod> {
       try{
-        const pod : Pod = await this.get(key)
-        const containeridlist : ContainerIdInfo[] = pod.value.containeridlist
-        for(var container of containeridlist){
-          await this.containerService.delete(container.id)
-        }
+        const pod : Pod = await this.get(key);
         return await this.podRepository.remove(pod);
       } catch (error) {
         console.error(error);
-        throw new Error('Could not get');
+        throw new Error('Could not delete');
       }
     }
 

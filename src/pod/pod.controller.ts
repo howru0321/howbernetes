@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Query } from '@nestjs/common';
 import { PodService } from './pod.service';
 import { PodMetadata } from '../interfaces/metadata.interface'
 import { Pod } from '../entities/pod.entity';
@@ -9,8 +9,8 @@ export class PodController {
     constructor(private readonly podService: PodService) {}
 
     @Post()
-    async create(@Body() body: { id: string, podMetadata : PodMetadata, containerlist, containerMetadataList : ContainerMetadata[] }) {
-        const response = await this.podService.create(body.id, body.podMetadata, body.containerMetadataList);
+    async create(@Body() body: { podId: string, podMetadata : PodMetadata}) {
+        const response = await this.podService.create(body.podId, body.podMetadata);
         return `Successful add ${response.key} to pod list`;
     }
 
@@ -19,6 +19,12 @@ export class PodController {
         const response = await this.podService.delete(podId);
         return `Successful remove ${response.key} to pod list`;
     }
+
+    @Patch()
+    async update(@Body() body: { id: string, podMetadata : PodMetadata, containerlist}) {
+      const response = await this.podService.update(body.id, body.podMetadata);
+      return `Successful update ${response.key} to pod list`;
+  }
 
     @Get('/getall')
     async getAll() : Promise<Pod[]> {
