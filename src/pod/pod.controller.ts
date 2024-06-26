@@ -9,14 +9,14 @@ export class PodController {
     constructor(private readonly podService: PodService) {}
 
     @Post()
-    async create(@Body() body: { name: string, podMetadata : PodMetadata, containerlist, containerMetadataList : ContainerMetadata[] }) {
-        const response = await this.podService.create(body.name, body.podMetadata, body.containerMetadataList);
+    async create(@Body() body: { id: string, podMetadata : PodMetadata, containerlist, containerMetadataList : ContainerMetadata[] }) {
+        const response = await this.podService.create(body.id, body.podMetadata, body.containerMetadataList);
         return `Successful add ${response.key} to pod list`;
     }
 
     @Delete()
-    async delete(@Query('name') podName){
-        const response = await this.podService.delete(podName);
+    async delete(@Query('id') podId){
+        const response = await this.podService.delete(podId);
         return `Successful remove ${response.key} to pod list`;
     }
 

@@ -36,8 +36,10 @@ export class DeploymentService {
       async delete(key: string): Promise<Deployment> {
         try{
           const deployment : Deployment = await this.get(key)
-          const podName : string = deployment.value.podname
-          await this.podService.delete(podName)
+          const podIdList : string[] = deployment.value.podidlist
+          for(var podId of podIdList){
+            await this.podService.delete(podId)
+          }
           return await this.deploymentRepository.remove(deployment);
         } catch (error) {
           console.error(error);
