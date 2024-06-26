@@ -20,12 +20,6 @@ export class PodController {
         return `Successful remove ${response.key} to pod list`;
     }
 
-    @Patch()
-    async update(@Body() body: { id: string, podMetadata : PodMetadata, containerlist}) {
-      const response = await this.podService.update(body.id, body.podMetadata);
-      return `Successful update ${response.key} to pod list`;
-  }
-
     @Get('/getall')
     async getAll() : Promise<Pod[]> {
       return await this.podService.getAll();
