@@ -16,6 +16,7 @@ export interface ContainerMetadata {
 export interface PodMetadata {
   name : string;
   podLabels : Label[];
+  replicaset : string;
   workernode : string;
   containers : number;
   containeridlist : ContainerIdInfo[];
