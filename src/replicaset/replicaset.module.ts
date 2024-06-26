@@ -1,24 +1,24 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Deployment } from '../entities/deployment.entity';
+import { Replicaset } from '../entities/replicaset.entity';
 import { Pod } from '../entities/pod.entity'
 import { Container } from 'src/entities/container.entity';
-import { DeploymentController } from './deployment.controller';
-import { DeploymentService } from './deployment.service';
+import { ReplicasetController } from './replicaset.controller';
+import { ReplicasetService } from './replicaset.service';
 import { PodService } from '../pod/pod.service'
 import { ContainerService } from '../container/container.service'
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Deployment], 'deploymentConnection'),
+    TypeOrmModule.forFeature([Replicaset], 'replicasetConnection'),
     TypeOrmModule.forFeature([Pod], 'podConnection'),
     TypeOrmModule.forFeature([Container], 'containerConnection')
   ],
-  controllers: [DeploymentController],
+  controllers: [ReplicasetController],
   providers: [
-    DeploymentService,
+    ReplicasetService,
     PodService,
     ContainerService
   ]
 })
-export class DeploymentModule {}
+export class ReplicasetModule {}

@@ -17,10 +17,10 @@ export const podDBConfig: TypeOrmModuleOptions = {
   synchronize: true,
 };
 
-export const deploymentDBConfig: TypeOrmModuleOptions = {
-  name: 'deploymentConnection',
+export const replicasetDBConfig: TypeOrmModuleOptions = {
+  name: 'replicasetConnection',
   type: 'sqlite',
-  database: 'src/sqlite/deployment.sqlite',
+  database: 'src/sqlite/replicaset.sqlite',
   entities: [__dirname + '/**/*.entity{.ts,.js}'],
   synchronize: true,
 };
