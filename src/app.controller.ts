@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Query, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Query, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
 import { AppService } from './app.service';
 import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
@@ -42,10 +42,10 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  private generateUUID(existingUUIDs: string[]): string {
+  private async generateUUID(existingUUIDs: string[]): Promise<string> {
     let newUUID: string;
     do {
-      newUUID = uuidv4();
+      newUUID = await uuidv4();
     } while (existingUUIDs.includes(newUUID));
     
     return newUUID;
@@ -104,7 +104,7 @@ export class AppController {
     const podLabels : Label[] = body.podLabels;
     const containerlist : ContainerInfo[] = body.containerInfolist;
 
-    const newUUID : string = this.generateUUID([]);
+    const newUUID : string = await this.generateUUID([]);
     const podId : string = podName + newUUID;
     const workernodeName : string = await this.createPodF(podId, podName, podLabels, containerlist, null);
 
@@ -114,7 +114,7 @@ export class AppController {
   private async createReplicasetF(replicasetName : string, replicas : number, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<void> {
     let podIdList : string[] = []
     for(let i = 0; i < replicas; i++){
-      const newUUID : string = this.generateUUID(podIdList);
+      const newUUID : string = await this.generateUUID(podIdList);
       const podId : string = podName + newUUID;
       await this.createPodF(podId, podName, podLabels, containerlist, replicasetName);
       podIdList.push(newUUID);
@@ -176,7 +176,6 @@ export class AppController {
     if(replicasetName != null && !isDeleteReplicas){
 
       let newcontainerIdList : ContainerIdInfo[] = [];
-      //let newcontainerList : ContainerInfo[] = [];
       for(let container of containerIdList){
         const containerName = container.metadata.name;
         const imageName : string = container.metadata.image;
@@ -190,7 +189,6 @@ export class AppController {
           name : containerName,
           image : imageName
         }
-        //newcontainerList.push(newcontainer);
         newcontainerIdList.push(containerInfo);
       
         await this.containerService.updateContainerState(containerId, containerName, imageName, workernodeName);
@@ -201,7 +199,7 @@ export class AppController {
       const matchLabels : Label[] = replicasetInfo.value.matchlabel;
       const podTemplate : PodTemplate= replicasetInfo.value.podtemplate;
       const podIdList : string[] = replicasetInfo.value.podidlist;
-      const newUUID : string = this.generateUUID(podIdList);
+      const newUUID : string = await this.generateUUID(podIdList);
       const newpodId : string = podName + newUUID;
       const newpodIdList: string[] = podIdList.map(pId => (podName + pId) === podId ? newUUID : pId);
 
@@ -218,10 +216,14 @@ export class AppController {
       await this.podService.updatePodState(newpodId, podMetadata);
 
       /*API to ETCD : Update the worker node's container count in WorkernodeDB*/
-      const containerNumber : number = containerIdList.length;
-      workernodeContainers=workernodeContainers+containerNumber;
-      workernodePods=workernodePods+1;
-      await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
+      const WorkerNodeInfo2 : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
+    
+      let workernodeContainers2 : number = WorkerNodeInfo2.value.containers;
+      let workernodePods2 : number = WorkerNodeInfo2.value.pods;
+      const containerNumber2 : number = containerIdList.length;
+      workernodeContainers2=workernodeContainers2+containerNumber2;
+      workernodePods2=workernodePods2+1;
+      await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers2, workernodePods2);
 
       await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
     }
@@ -251,6 +253,43 @@ export class AppController {
     await this.deleteReplicasetF(replicasetName, replicasetInfo);
 
     return `${replicasetName}(pod id) is removed`;
+  }
+
+  @Patch('scale/replicaset')
+  async scaleReplicaset(@Query('name') replicasetName : string, @Query('replicas') replicas : number){
+    const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
+    const currentreplicas : number = replicasetInfo.value.replicas;
+
+    if(currentreplicas === replicas){
+      return `${replicasetName}'s replicas is already ${replicas}.`
+    }
+    else{
+      const matchLabels : Label[] = replicasetInfo.value.matchlabel;
+      const podTemplate : PodTemplate = replicasetInfo.value.podtemplate;
+      const containerList : ContainerInfo[] = podTemplate.containerlist;
+      const podName : string = replicasetInfo.value.podtemplate.name;
+      const podLabels : Label[] = replicasetInfo.value.matchlabel;
+      const podIdList : string[] = replicasetInfo.value.podidlist;
+
+      const newpodIdList : string[] = podIdList;
+      if(currentreplicas > replicas){
+        const iter : number = currentreplicas - replicas;
+        for(let i = 0; i < iter ; i++){
+          const deletePodId = newpodIdList.pop();
+          await this.deletePodF(podName+deletePodId, true);
+        }
+      } else{
+        const iter : number = replicas - currentreplicas;
+        for(let i = 0; i < iter ; i++){
+          const newUUID : string = await this.generateUUID(podIdList);
+          const newpodId : string = podName + newUUID;
+          await this.createPodF(newpodId, podName, podLabels, containerList, replicasetName);
+          newpodIdList.push(newUUID);
+        }
+      }
+
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
+    }
   }
 
 
