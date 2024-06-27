@@ -295,6 +295,10 @@ export class AppController {
 
   @Delete('/delete/pod')
   async deletePod(@Query('name') podId : string) {
+    const podInfo : Pod = await this.podService.getPod(podId);
+    if(!podInfo){
+      return `There is no ${podId} in pod list.`
+    }
     const workernodeName:string = await this.deletePodF(podId, false);
 
     return `${podId}(pod id) is removed in ${workernodeName}(worker-node)`;
@@ -319,6 +323,9 @@ export class AppController {
   @Delete('delete/replicaset')
   async deleteReplicaset(@Query('name') replicasetName : string) {
     const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
+    if(!replicasetInfo){
+      return `There is no ${replicasetName} in deployment list.`
+    }
     const deploymentName : string = replicasetInfo.value.deployment;
     const replicas : number = replicasetInfo.value.replicas;
     const matchLabels : Label[] = replicasetInfo.value.matchlabel;
@@ -347,6 +354,9 @@ export class AppController {
   @Delete('delete/deployment')
   async deleteDeployment(@Query('name') deploymentName : string) { 
     const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName);
+    if(!deploymentInfo){
+      return `There is no ${deploymentName} in deployment list.`
+    }
     const replicasetName : string = deploymentInfo.key + deploymentInfo.value.replicasetid;
 
     const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
