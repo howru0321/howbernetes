@@ -161,7 +161,7 @@ program
           },
         ]
       });
-      console.log('Response:', response.data);
+      console.log(response.data);
     } catch (error) {
       console.error('Error:', error.message);
     }
@@ -235,7 +235,8 @@ program
       const fileContents = fs.readFileSync(filePath, 'utf8');
       data = yaml.load(fileContents);
     } catch (error) {
-      console.error('Error reading or parsing YAML file:', error.message);
+      console.error(`There is no file in ${filePath}`);
+      return;
     }
 
     kind = data.kind
@@ -284,7 +285,7 @@ program
         }
         podLabels.push(podLabel)
       }
-      const containerInfolist = data.spec.template.spec.containers
+      const containerInfolist = data.spec.template.spec.containers;
 
       try {
         const response = await axios.post(`http://${ip}:${port}/create/replicaset`, {
@@ -296,6 +297,134 @@ program
             podLabels,
             containerInfolist : containerInfolist
           }
+        });
+        console.log('Response:', response.data);
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+    } else if(kind === "Deployment"){
+      const deploymentName=data.metadata.name
+      const matchlables = data.spec.selector.matchLables;
+      const matchLabels = [];
+      for (const [key, value] of Object.entries(matchlables)) {
+        const matchLabel = {
+          key : key,
+          value : value
+        }
+        matchLabels.push(matchLabel)
+      }
+      const replicas = data.spec.replicas
+      const podName = data.spec.template.metadata.name
+      const labels = data.spec.template.metadata.labels;
+      const podLabels = [];
+      for (const [key, value] of Object.entries(labels)) {
+        const podLabel = {
+          key : key,
+          value : value
+        }
+        podLabels.push(podLabel)
+      }
+      const containerInfolist = data.spec.template.spec.containers;
+      const strategyType = data.spec.strategy.type;;
+
+      try {
+        const response = await axios.post(`http://${ip}:${port}/create/deployment`, {
+          deploymentName: deploymentName,
+          matchLabels,
+          replicas: replicas,
+          podInfo:{
+            podName : podName,
+            podLabels,
+            containerInfolist : containerInfolist
+          },
+          strategyType
+        });
+        console.log('Response:', response.data);
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+    }
+  });
+
+//const applyCommand = program.command('apply').description('Apply object');
+
+program
+  .command('apply')
+  .description('Create a resource from a file')
+  .option('-f, --filename <filePath>', 'Path to the YAML file')
+  .action(async (cmd) =>{
+    let filePath = cmd.filename;
+
+    if (!filePath) {
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'filePath',
+          message: 'Please provide the path to the YAML file:',
+          validate: (input) => {
+            if (fs.existsSync(input)) {
+              return true;
+            }
+            return 'File does not exist. Please provide a valid file path.';
+          }
+        }
+      ]);
+      filePath = answers.filePath;
+    }
+
+    let ip, port;
+    try {
+      ({ ip, port } = getMasterNodeConfig());
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+
+    let data
+    try {
+      const fileContents = fs.readFileSync(filePath, 'utf8');
+      data = yaml.load(fileContents);
+    } catch (error) {
+      console.error('Error reading or parsing YAML file:', error.message);
+    }
+
+    kind = data.kind
+    if(kind === "Deployment"){
+      const deploymentName=data.metadata.name
+      const matchlables = data.spec.selector.matchLables;
+      const matchLabels = [];
+      for (const [key, value] of Object.entries(matchlables)) {
+        const matchLabel = {
+          key : key,
+          value : value
+        }
+        matchLabels.push(matchLabel)
+      }
+      const replicas = data.spec.replicas
+      const podName = data.spec.template.metadata.name
+      const labels = data.spec.template.metadata.labels;
+      const podLabels = [];
+      for (const [key, value] of Object.entries(labels)) {
+        const podLabel = {
+          key : key,
+          value : value
+        }
+        podLabels.push(podLabel)
+      }
+      const containerInfolist = data.spec.template.spec.containers;
+      const strategyType = data.spec.strategy.type;;
+
+      try {
+        const response = await axios.post(`http://${ip}:${port}/apply/deployment`, {
+          deploymentName: deploymentName,
+          matchLabels,
+          replicas: replicas,
+          podInfo:{
+            podName : podName,
+            podLabels,
+            containerInfolist : containerInfolist
+          },
+          strategyType
         });
         console.log('Response:', response.data);
       } catch (error) {
@@ -321,6 +450,20 @@ deleteCommand
   .description('Delete a replicaset')
   .action(async (name) => {
     await deleteObject('replicaset', name);
+  });
+
+deleteCommand
+  .command('deployment <name>')
+  .description('Delete a deployment')
+  .action(async (name) => {
+    await deleteObject('deployment', name);
+  });
+
+deleteCommand
+  .command('workernode <name>')
+  .description('Delete a workernode')
+  .action(async (name) => {
+    await deleteObject('worker', name);
   });
 
 // Generic function to delete an object
@@ -393,8 +536,9 @@ function getStatus(containerList, totalContainers) {
 }
 
 const getCommand = program.command('get').description("Get object's information");
+
 getCommand
-    .command('pod <name>')
+    .command('pod [name]')
     .description('Get pod information')
     .action(async (name) => {
       try {
@@ -403,7 +547,36 @@ getCommand
         console.error(error.message);
         return;
       }
-      console.log(name);
+
+      
+      const table = new Table({
+        head: ['NAME', 'READY', 'STATUS', 'WORKER NODE', 'REPLICA SET']
+      });
+      if(!name){
+        let podInfos;
+        try {
+          const response = await axios.get(`http://${ip}:${port}/getall/pod`);
+          podInfos = response.data;
+        } catch (error) {
+          console.error('Error:', error.message);
+        }
+        if(!podInfos || podInfos.length === 0){
+          console.log('Pod list is empty.');
+          return;
+        }
+        for(let podInfo of podInfos){
+          const key = podInfo.key;
+          const {containers, containeridlist, workernode, replicaset} = podInfo.value;
+          const { readyStatus, status } = getStatus(containeridlist, containers);
+
+          table.push(
+              [key, readyStatus, status, workernode, replicaset]
+          );
+        }
+        console.log(table.toString());
+        return;
+      }
+      
       let podInfo;
       try {
         const response = await axios.get(`http://${ip}:${port}/get/pod?&name=${name}`);
@@ -411,14 +584,13 @@ getCommand
       } catch (error) {
         console.error('Error:', error.message);
       }
+      if(!podInfo){
+        console.log(`There is no ${name} in pod list.`)
+        return;
+      }
       const key = podInfo.key;
       const {containers, containeridlist, workernode, replicaset} = podInfo.value;
       const { readyStatus, status } = getStatus(containeridlist, containers);
-
-      const table = new Table({
-          head: ['NAME', 'READY', 'STATUS', 'WORKER NODE', 'REPLICA SET'],
-          colWidths: [30, 10, 15, 20, 20]
-      });
 
       table.push(
           [key, readyStatus, status, workernode, replicaset]
@@ -428,13 +600,42 @@ getCommand
     });
 
   getCommand
-    .command('replicaset <name>')
+    .command('replicaset [name]')
     .description('Get replicaset information')
     .action(async (name) => {
       try {
         ({ ip, port } = getMasterNodeConfig());
       } catch (error) {
         console.error(error.message);
+        return;
+      }
+
+      const table = new Table({
+        head: ['NAME', 'DESIREED', 'CURRENT']
+      });
+
+      if(!name){
+        let replicasetInfos;
+        try {
+          const response = await axios.get(`http://${ip}:${port}/getall/replicaset`);
+          replicasetInfos = response.data;
+        } catch (error) {
+          console.error('Error:', error.message);
+        }
+        if(!replicasetInfos || replicasetInfos.length === 0){
+          console.log('Replicaset list is empty.');
+          return;
+        }
+
+        for(let replicasetInfo of replicasetInfos){
+          const key = replicasetInfo.key;
+          const { replicas, podidlist } = replicasetInfo.value;
+
+          table.push(
+              [key, replicas, podidlist.length]
+          );
+        }
+        console.log(table.toString());
         return;
       }
       let replicasetInfo;
@@ -444,16 +645,79 @@ getCommand
       } catch (error) {
         console.error('Error:', error.message);
       }
+      if(!replicasetInfo){
+        console.log(`There is no ${name} in replicaset list.`)
+        return;
+      }
       const key = replicasetInfo.key;
       const { replicas, podidlist } = replicasetInfo.value;
 
-      const table = new Table({
-          head: ['NAME', 'DESIREED', 'CURRENT'],
-          colWidths: [30, 10, 15]
-      });
-
       table.push(
           [key, replicas, podidlist.length]
+      );
+
+      console.log(table.toString());
+    });
+
+  getCommand
+    .command('workernode [name]')
+    .description('Get workernode information')
+    .action(async (name) => {
+      try {
+        ({ ip, port } = getMasterNodeConfig());
+      } catch (error) {
+        console.error(error.message);
+        return;
+      }
+
+      const table = new Table({
+        head: ['NAME', 'IP', 'PORT', 'PODS', 'CONTAINERS']
+      });
+
+      if(!name){
+        let workernodeInfos;
+        try {
+          const response = await axios.get(`http://${ip}:${port}/getall/workernode`);
+          workernodeInfos = response.data;
+        } catch (error) {
+          console.error('Error:', error.message);
+        }
+        if(!workernodeInfos || workernodeInfos.length === 0){
+          console.log('Worker Node list is empty.');
+          return;
+        }
+
+        for(let workernodeInfo of workernodeInfos){
+          const key = workernodeInfo.key;
+          const wip = workernodeInfo.value.ip;
+          const wport = workernodeInfo.value.port;
+          const { pods, containers } = workernodeInfo.value;
+
+          table.push(
+              [key, wip, wport, pods, containers]
+          );
+        }
+        console.log(table.toString());
+        return;
+      }
+      let workernodeInfo;
+      try {
+        const response = await axios.get(`http://${ip}:${port}/get/workernode?&name=${name}`);
+        workernodeInfo = response.data;
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+      if(!workernodeInfo){
+        console.log(`There is no ${name} in worker node list.`)
+        return;
+      }
+      const key = workernodeInfo.key;
+      const wip = workernodeInfo.value.ip;
+      const wport = workernodeInfo.value.port;
+      const { pods, containers } = workernodeInfo.value;
+
+      table.push(
+          [key, wip, wport, pods, containers]
       );
 
       console.log(table.toString());
