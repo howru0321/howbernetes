@@ -13,11 +13,12 @@ export class ReplicasetService {
         private readonly httpService: HttpService
     ) {}
 
-    async updateReplicasetState(replicasetName: string, replicas : number, matchLabels : Label[], podIdList : string[], podTemplate : PodTemplate): Promise<string> {
+    async updateReplicasetState(replicasetName: string, replicas : number, deployment : string, matchLabels : Label[], podIdList : string[], podTemplate : PodTemplate): Promise<string> {
         const replicasetMetadata : ReplicasetMetadata =
         {
             name : replicasetName,
             replicas : replicas,
+            deployment : deployment,
             matchlabel : matchLabels,
             podidlist : podIdList,
             podtemplate : podTemplate

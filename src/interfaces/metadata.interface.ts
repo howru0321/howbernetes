@@ -22,9 +22,16 @@ export interface PodMetadata {
   containeridlist : ContainerIdInfo[];
 }
 
+export interface DeploymentMetadata {
+  name : string;
+  replicasetid : string;
+  strategyType : string;
+}
+
 export interface ReplicasetMetadata {
   name : string;
   replicas : number;
+  deployment : string;
   matchlabel : Label[];
   podidlist : string[];
   podtemplate : PodTemplate;
@@ -32,6 +39,7 @@ export interface ReplicasetMetadata {
 
 export interface PodTemplate {
   name : string;
+  podlabel : Label[];
   containerlist : ContainerInfo[];
 }
 
@@ -61,4 +69,12 @@ export class CreateReplicasetDto {
   matchLabels : Label[];
   replicas: number;
   podInfo : CreatePodDto;
+}
+
+export class CreateDeploymentDto {
+  deploymentName: string;
+  matchLabels : Label[];
+  replicas: number;
+  podInfo : CreatePodDto;
+  strategyType : string;
 }

@@ -10,6 +10,8 @@ import { PodService } from './pod/pod.service'
 import { PodModule } from './pod/pod.module'
 import { ReplicasetModule } from './replicaset/replicaset.module';
 import { ReplicasetService } from './replicaset/replicaset.service'
+import { DeploymentModule } from './deployment/deployment.module';
+import { DeploymentService } from './deployment/deployment.service'
 
 
 @Module({
@@ -18,7 +20,8 @@ import { ReplicasetService } from './replicaset/replicaset.service'
     WorkernodeModule,
     ContainerModule,
     PodModule,
-    ReplicasetModule
+    ReplicasetModule,
+    DeploymentModule
   ],
   controllers: [AppController],
   providers: [
@@ -26,7 +29,8 @@ import { ReplicasetService } from './replicaset/replicaset.service'
     WorkernodeService,
     ContainerService,
     PodService,
-    ReplicasetService
+    ReplicasetService,
+    DeploymentService
   ],
 })
 export class AppModule {}

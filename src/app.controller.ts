@@ -6,16 +6,19 @@ import { PodService } from './pod/pod.service'
 import { WorkerNode } from './entities/workernode.entity';
 import { Container } from './entities/container.entity';
 import { CreatePodDto, PodMetadata, ReplicasetMetadata } from './interfaces/metadata.interface';
-import { CreateReplicasetDto } from './interfaces/metadata.interface'
+import { CreateReplicasetDto, CreateDeploymentDto } from './interfaces/metadata.interface'
 import { ContainerInfo } from './interfaces/metadata.interface';
 import { ContainerMetadata } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
+import { Deployment } from './entities/deployment.entity'
 import { ContainerIdInfo } from './interfaces/metadata.interface'
 import { v4 as uuidv4 } from 'uuid';
 import { ReplicasetService } from './replicaset/replicaset.service'
 import { PodTemplate } from './interfaces/metadata.interface'
 import { Label } from './interfaces/metadata.interface'
 import { Replicaset } from './entities/replicaset.entity'
+import { DeploymentService } from './deployment/deployment.service'
+import { query } from 'express';
 
 
 @Controller()
@@ -25,7 +28,8 @@ export class AppController {
     private readonly workernodeService: WorkernodeService,
     private readonly containerService: ContainerService,
     private readonly podService: PodService,
-    private readonly replicasetService: ReplicasetService
+    private readonly replicasetService: ReplicasetService,
+    private readonly deploymentService: DeploymentService
   ) {}
 
   private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
@@ -51,9 +55,6 @@ export class AppController {
     return newUUID;
   }
   private async createPodF(podId : string, podName : string, podLabels : Label[], containerlist : ContainerInfo[], replicasetName : string) : Promise<string>{
-    if(await this.podService.getPod(podId)){
-      return null;
-    }
     /*API to Scheduler : Scheduling Worker Nodes*/
     const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
         
@@ -113,18 +114,16 @@ export class AppController {
     const podLabels : Label[] = body.podLabels;
     const containerlist : ContainerInfo[] = body.containerInfolist;
 
-    const workernodeName : string = await this.createPodF(podName, podName, podLabels, containerlist, null);
-
-    if(!workernodeName){
+    if(await this.podService.getPod(podName)){
       return `${podName} is already exist.`;
     }
+
+    const workernodeName : string = await this.createPodF(podName, podName, podLabels, containerlist, null);
+
     return `${podName}(container) is running in ${workernodeName}(worker-node)`;
   }
 
-  private async createReplicasetF(replicasetName : string, replicas : number, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<boolean> {
-    if(await this.replicasetService.getReplicaset(replicasetName)){
-      return false;
-    }
+  private async createReplicasetF(replicasetName : string, replicas : number, deployment : string, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<void> {
     let podIdList : string[] = [];
     for(let i = 0; i < replicas; i++){
       const newUUID : string = await this.generateUUID(podIdList);
@@ -133,12 +132,11 @@ export class AppController {
       podIdList.push(newUUID);
       const podTemplate : PodTemplate = {
         name : podName,
+        podlabel : podLabels,
         containerlist : containerlist
       }
-      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, deployment, matchLabels, podIdList, podTemplate);
     }
-    
-    return true;
   }
   @Post('/create/replicaset')
   async createReplicaset(@Body() body: CreateReplicasetDto) {
@@ -150,12 +148,77 @@ export class AppController {
     const podLabels : Label[] = body.podInfo.podLabels;
     const containerlist : ContainerInfo[] = body.podInfo.containerInfolist;
 
-    const finish = await this.createReplicasetF(replicasetName, replicas, matchLabels, podName, podLabels, containerlist);
-
-    if(!finish){
+    if(await this.replicasetService.getReplicaset(replicasetName)){
       return `${replicasetName} is already exist.`
     }
+
+    await this.createReplicasetF(replicasetName, replicas, null, matchLabels, podName, podLabels, containerlist);
+
     return `${replicasetName}(replicaset) is running`;
+  }
+
+  @Post('/create/deployment')
+  async createDeployment(@Body() body: CreateDeploymentDto) {
+    //Request Data Parsing
+    const deploymentName : string = body.deploymentName;
+    const matchLabels : Label[] = body.matchLabels;
+    const replicas : number = body.replicas;
+    const strategyType : string = body.strategyType;
+    const podName : string = body.podInfo.podName;
+    const podLabels : Label[] = body.podInfo.podLabels;
+    const containerlist : ContainerInfo[] = body.podInfo.containerInfolist;
+    
+
+    const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName)
+    if(deploymentInfo){
+      return `${deploymentName} is already exist.`
+    }
+
+    const replicasetId : string = await this.generateUUID([]);
+    const replicasetName : string = deploymentName + replicasetId;
+
+    await this.createReplicasetF(replicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerlist);
+    await this.deploymentService.updateDeploymentState(deploymentName, replicasetId, strategyType);
+
+    return `${deploymentName}(deployment) is running`;
+
+  }
+  @Post('/apply/deployment')
+  async applyDeployment(@Body() body: CreateDeploymentDto) {
+    //Request Data Parsing
+    const deploymentName : string = body.deploymentName;
+    const matchLabels : Label[] = body.matchLabels;
+    const replicas : number = body.replicas;
+    const strategyType : string = body.strategyType;
+    const podName : string = body.podInfo.podName;
+    const podLabels : Label[] = body.podInfo.podLabels;
+    const containerlist : ContainerInfo[] = body.podInfo.containerInfolist;
+    
+
+    const replicasetId : string = await this.generateUUID([]);
+    const replicasetName : string = deploymentName + replicasetId;
+    const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName);
+    if(deploymentInfo){
+      const currentreplicasetName : string = deploymentInfo.value.name + deploymentInfo.value.replicasetid;
+      const currentreplicasetInfo : Replicaset = await this.replicasetService.getReplicaset(currentreplicasetName);
+      const currentreplicasetMetadata : ReplicasetMetadata = currentreplicasetInfo.value;
+      if(strategyType === "RollingUpdate"){
+        await this.createReplicasetF(replicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerlist);
+        await this.deleteReplicasetF(currentreplicasetName,currentreplicasetMetadata);
+      }else if(strategyType === "Recreate"){
+        await this.deleteReplicasetF(currentreplicasetName,currentreplicasetMetadata);
+        await this.createReplicasetF(replicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerlist);
+      }
+    }
+    else{
+      await this.createReplicasetF(replicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerlist);
+    }
+
+    //this.createReplicasetF(replicasetName, replicas, matchLabels, podName, podLabels, containerlist);
+    this.deploymentService.updateDeploymentState(deploymentName, replicasetId, strategyType);
+
+    return `${deploymentName}(deployment) is running`;
+
   }
 
   private async deletePodF(podId: string, isDeleteReplicas : boolean) : Promise<string>{
@@ -168,7 +231,7 @@ export class AppController {
     const podName : string = podInfo.value.name;
     let containerIdList : ContainerIdInfo[] = podInfo.value.containeridlist;
     /*API to ETCD : Get worker nodes information which was binding this container from ETCD*/
-    const WorkerNodeInfo : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
+    const WorkerNodeInfo : WorkerNode = await this.workernodeService.getWorkerNode(workernodeName);
     
     const workernodeIp : string = WorkerNodeInfo.value.ip;
     const workernodePort : string = WorkerNodeInfo.value.port;
@@ -212,6 +275,7 @@ export class AppController {
     if(replicasetName != null && !isDeleteReplicas){
       const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
       const replicas : number = replicasetInfo.value.replicas;
+      const deploymentName : string = replicasetInfo.value.deployment;
       const matchLabels : Label[] = replicasetInfo.value.matchlabel;
 
       const podTemplate : PodTemplate= replicasetInfo.value.podtemplate;
@@ -223,7 +287,7 @@ export class AppController {
       const newpodIdList: string[] = podIdList.map(pId => (podName + pId) === podId ? newUUID : pId);
       await this.createPodF(newpodId, podName, podLabels, containerList, replicasetName);
       
-      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, deploymentName, matchLabels, newpodIdList, podTemplate);
     }
 
     return workernodeName;
@@ -236,17 +300,18 @@ export class AppController {
     return `${podId}(pod id) is removed in ${workernodeName}(worker-node)`;
   }
 
-  private async deleteReplicasetF(replicasetName : string, replicasetInfo : Replicaset) : Promise<void> {
-    const podName : string = replicasetInfo.value.podtemplate.name;
-    const podIdList : string[] = replicasetInfo.value.podidlist;
-    const replicas : number = replicasetInfo.value.replicas;
-    const matchLabels : Label[] = replicasetInfo.value.matchlabel;
-    const podTemplate : PodTemplate = replicasetInfo.value.podtemplate;
+  private async deleteReplicasetF(replicasetName : string, replicasetMetadata : ReplicasetMetadata) : Promise<void> {
+    const podName : string = replicasetMetadata.podtemplate.name;
+    const podIdList : string[] = replicasetMetadata.podidlist;
+    const replicas : number = replicasetMetadata.replicas;
+    const deploymentName : string = replicasetMetadata.deployment;
+    const matchLabels : Label[] = replicasetMetadata.matchlabel;
+    const podTemplate : PodTemplate = replicasetMetadata.podtemplate;
     while(podIdList.length != 0){
       const podId : string = podIdList.pop();
       await this.deletePodF(podName + podId, true);
 
-      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, deploymentName, matchLabels, podIdList, podTemplate);
     }
 
     await this.replicasetService.removeReplicase(replicasetName);
@@ -254,9 +319,42 @@ export class AppController {
   @Delete('delete/replicaset')
   async deleteReplicaset(@Query('name') replicasetName : string) {
     const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
-    await this.deleteReplicasetF(replicasetName, replicasetInfo);
+    const deploymentName : string = replicasetInfo.value.deployment;
+    const replicas : number = replicasetInfo.value.replicas;
+    const matchLabels : Label[] = replicasetInfo.value.matchlabel;
+    const podName : string = replicasetInfo.value.podtemplate.name;
+    const podLabels : Label[] = replicasetInfo.value.podtemplate.podlabel;
+    const containerList : ContainerInfo[] = replicasetInfo.value.podtemplate.containerlist;
+    await this.deleteReplicasetF(replicasetName, replicasetInfo.value);
+
+    if(deploymentName){
+      const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName);
+      const currentUUID : string = deploymentInfo.value.replicasetid;
+      const currentstrategyType : string = deploymentInfo.value.strategyType;
+      let newUUID : string = "";
+      do{
+        newUUID=await this.generateUUID([]);
+      }while(newUUID === currentUUID);
+
+      const newreplicasetName : string = deploymentName + newUUID;
+      await this.createReplicasetF(newreplicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerList);
+      await this.deploymentService.updateDeploymentState(deploymentName, newUUID, currentstrategyType);
+    }
 
     return `${replicasetName}(pod id) is removed`;
+  }
+
+  @Delete('delete/deployment')
+  async deleteDeployment(@Query('name') deploymentName : string) { 
+    const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName);
+    const replicasetName : string = deploymentInfo.key + deploymentInfo.value.replicasetid;
+
+    const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
+    await this.deleteReplicasetF(replicasetName, replicasetInfo.value);
+
+    await this.deploymentService.removeDeployment(deploymentName);
+
+    return `${deploymentName}(deployment) is removed`;
   }
 
   @Patch('scale/replicaset')
@@ -283,7 +381,7 @@ export class AppController {
           for(let i = 0; i < iter ; i++){
             const deletePodId = newpodIdList.pop();
             await this.deletePodF(podName+deletePodId, true);
-            await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
+            await this.replicasetService.updateReplicasetState(replicasetName, replicas, null, matchLabels, newpodIdList, podTemplate);
           }
         } else{
           const iter : number = replicas - currentreplicas;
@@ -292,7 +390,7 @@ export class AppController {
             const newpodId : string = podName + newUUID;
             await this.createPodF(newpodId, podName, podLabels, containerList, replicasetName);
             newpodIdList.push(newUUID);
-            await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
+            await this.replicasetService.updateReplicasetState(replicasetName, replicas, null, matchLabels, newpodIdList, podTemplate);
           }
         }
       }
@@ -307,10 +405,36 @@ export class AppController {
   async getPod(@Query('name') name : string): Promise<Pod> {
     return this.podService.getPod(name);
   }
+  @Get('/getall/pod')
+  async getallPod(): Promise<Pod[]> {
+    return this.podService.getAllPodList();
+  }
 
   @Get('/get/replicaset')
   async getReplicaset(@Query('name') name : string): Promise<Replicaset> {
     return this.replicasetService.getReplicaset(name);
+  }
+  @Get('/getall/replicaset')
+  async getallReplicaset(): Promise<Replicaset[]> {
+    return this.replicasetService.getAllReplicasetList();
+  }
+
+  @Get('/get/deployment')
+  async getDeployment(@Query('name') name : string): Promise<Deployment> {
+    return this.deploymentService.getDeployment(name);
+  }
+  @Get('/getall/deployment')
+  async getallDeployment(): Promise<Deployment[]> {
+    return this.deploymentService.getAllDeploymentList();
+  }
+
+  @Get('/get/workernode')
+  async getWorkerNode(@Query('name') name : string): Promise<WorkerNode> {
+    return this.workernodeService.getWorkerNode(name);
+  }
+  @Get('/getall/workernode')
+  async getallWorkerNode(): Promise<WorkerNode[]> {
+    return this.workernodeService.getAllWorkerNodeInfo();
   }
 
 
@@ -318,7 +442,22 @@ export class AppController {
   async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
     const {name, ip, port} = body;
     
+    const workernodeInfo : WorkerNode = await this.workernodeService.getWorkerNode(name);
+    if(workernodeInfo){
+      return `${name}(worker node) is already exist.`
+    }
     return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, 0, 0);
+  }
+
+  @Delete('/delete/worker')
+  async deleteWorkerNodeInfo(@Query('name') name :string) {
+    const workernodeInfo : WorkerNode = await this.workernodeService.getWorkerNode(name);
+
+    if(workernodeInfo.value.pods !== 0){
+      return `${name} is working! You cannot delete this worker node.`
+    }
+
+    return this.workernodeService.removeWorkernode(name);
   }
 
   @Get('/container/getall')

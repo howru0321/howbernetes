@@ -43,7 +43,7 @@ export class WorkernodeService {
         return response.data;
     }
 
-    async getWorkerNodeInfo(workernodeName : string) : Promise<WorkerNode>{
+    async getWorkerNode(workernodeName : string) : Promise<WorkerNode>{
         const response = await lastValueFrom(
             this.httpService.get(`http://howbe-db-server:3001/workernode/get?name=${workernodeName}`),
         );
@@ -62,6 +62,16 @@ export class WorkernodeService {
         );
         return response.data;
     }
+
+    async removeWorkernode(workernodeName: string): Promise<string> {
+        const response = await lastValueFrom(
+            this.httpService.delete(
+                `http://howbe-db-server:3001/workernode?name=${workernodeName}`
+            ),
+        );
+        return response.data;
+    }
+
 
 
 }
