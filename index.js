@@ -8,6 +8,7 @@ const Configstore = require('configstore');
 const pkg = require('./package.json');
 const axios = require('axios');
 const path = require('path');
+const Table = require('cli-table3');
 
 const config = new Configstore(pkg.name);
 
@@ -382,5 +383,80 @@ async function scaleObject(name, replicas) {
     console.error('Error:', error.message);
   }
 }
+
+
+function getStatus(containerList, totalContainers) {
+  const readyContainers = containerList.filter(container => container.id !== null).length;
+  const readyStatus = `${readyContainers}/${totalContainers}`;
+  const status = readyContainers === totalContainers ? 'COMPLETE' : 'NONCOMPLETE';
+  return { readyStatus, status };
+}
+
+const getCommand = program.command('get').description("Get object's information");
+getCommand
+    .command('pod <name>')
+    .description('Get pod information')
+    .action(async (name) => {
+      try {
+        ({ ip, port } = getMasterNodeConfig());
+      } catch (error) {
+        console.error(error.message);
+        return;
+      }
+      console.log(name);
+      let podInfo;
+      try {
+        const response = await axios.get(`http://${ip}:${port}/get/pod?&name=${name}`);
+        podInfo = response.data;
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+      const key = podInfo.key;
+      const {containers, containeridlist, workernode, replicaset} = podInfo.value;
+      const { readyStatus, status } = getStatus(containeridlist, containers);
+
+      const table = new Table({
+          head: ['NAME', 'READY', 'STATUS', 'WORKER NODE', 'REPLICA SET'],
+          colWidths: [30, 10, 15, 20, 20]
+      });
+
+      table.push(
+          [key, readyStatus, status, workernode, replicaset]
+      );
+
+      console.log(table.toString());
+    });
+
+  getCommand
+    .command('replicaset <name>')
+    .description('Get replicaset information')
+    .action(async (name) => {
+      try {
+        ({ ip, port } = getMasterNodeConfig());
+      } catch (error) {
+        console.error(error.message);
+        return;
+      }
+      let replicasetInfo;
+      try {
+        const response = await axios.get(`http://${ip}:${port}/get/replicaset?&name=${name}`);
+        replicasetInfo = response.data;
+      } catch (error) {
+        console.error('Error:', error.message);
+      }
+      const key = replicasetInfo.key;
+      const { replicas, podidlist } = replicasetInfo.value;
+
+      const table = new Table({
+          head: ['NAME', 'DESIREED', 'CURRENT'],
+          colWidths: [30, 10, 15]
+      });
+
+      table.push(
+          [key, replicas, podidlist.length]
+      );
+
+      console.log(table.toString());
+    });
 
 program.parse(process.argv);
