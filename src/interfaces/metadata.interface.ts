@@ -22,6 +22,12 @@ export interface PodMetadata {
   containeridlist : ContainerIdInfo[];
 }
 
+export interface DeploymentMetadata {
+  name : string;
+  replicasetid : string;
+  strategyType : string;
+}
+
 export interface ReplicasetMetadata {
   name : string;
   replicas : number;

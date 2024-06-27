@@ -3,14 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Replicaset } from '../entities/replicaset.entity';
 import { ReplicasetMetadata } from '../interfaces/metadata.interface'
-import { PodService } from '../pod/pod.service'
+//import { PodService } from '../pod/pod.service'
 
 @Injectable()
 export class ReplicasetService {
     constructor(
         @InjectRepository(Replicaset, 'replicasetConnection')
         private readonly replicasetRepository: Repository<Replicaset>,
-        private readonly podService: PodService
+        //private readonly podService: PodService
     ){}
 
     async create(key: string, value: ReplicasetMetadata): Promise<Replicaset> {

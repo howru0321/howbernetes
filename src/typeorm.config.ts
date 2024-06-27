@@ -32,3 +32,11 @@ export const workernodeDBConfig: TypeOrmModuleOptions = {
   entities: [__dirname + '/**/*.entity{.ts,.js}'],
   synchronize: true,
 };
+
+export const deploymentDBConfig: TypeOrmModuleOptions = {
+  name: 'deploymentConnection',
+  type: 'sqlite',
+  database: 'src/sqlite/deployment.sqlite',
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: true,
+};

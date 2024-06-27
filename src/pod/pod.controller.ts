@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Query } from '@nestjs/commo
 import { PodService } from './pod.service';
 import { PodMetadata } from '../interfaces/metadata.interface'
 import { Pod } from '../entities/pod.entity';
-import { ContainerMetadata } from '../interfaces/metadata.interface'
+//import { ContainerMetadata } from '../interfaces/metadata.interface'
 
 @Controller('pod')
 export class PodController {

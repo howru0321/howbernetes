@@ -9,11 +9,12 @@ import { Container } from '../entities/container.entity'
 @Module({
   imports: [
     TypeOrmModule.forFeature([Pod], 'podConnection'),
-    TypeOrmModule.forFeature([Container], 'containerConnection')
+    //TypeOrmModule.forFeature([Container], 'containerConnection')
   ],
   controllers: [PodController],
   providers: [
     PodService,
-    ContainerService]
+    //ContainerService
+  ]
 })
 export class PodModule {}

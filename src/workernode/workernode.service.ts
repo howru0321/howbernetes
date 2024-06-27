@@ -22,6 +22,16 @@ export class WorkernodeService {
         }
       }
 
+      async delete(key: string): Promise<WorkerNode> {
+        try{
+          const workernode : WorkerNode = await this.get(key)
+          return await this.workerNodeRepository.remove(workernode);
+        } catch (error) {
+          console.error(error);
+          throw new Error('Could not get');
+        }
+      }
+
       async get(key: string): Promise<WorkerNode> {
         try{
             return await this.workerNodeRepository.findOne({where : {key}});

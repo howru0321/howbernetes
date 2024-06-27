@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Query } from '@nestjs/common';
 import { WorkernodeService } from './workernode.service';
 import { WorkerNodeMetadata } from '../interfaces/metadata.interface'
 import { WorkerNode } from '../entities/workernode.entity';
@@ -13,6 +13,12 @@ export class WorkernodeController {
       const response = await this.workerNodeService.create(body.name, body.metadata);
       return `Successful add ${response.key} to worker node list`;
       
+    }
+
+    @Delete()
+    async delete(@Query('name') workernodetName){
+        const response = await this.workerNodeService.delete(workernodetName);
+        return `Successful remove ${response.key} to replicaset list`;
     }
 
     @Get('/getall')

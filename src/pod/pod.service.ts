@@ -4,23 +4,23 @@ import { Repository } from 'typeorm';
 import { Pod } from '../entities/pod.entity';
 import { PodMetadata } from '../interfaces/metadata.interface'
 
-import { ContainerService } from '../container/container.service'
-import { ContainerMetadata } from '../interfaces/metadata.interface'
-import { ContainerIdInfo } from '../interfaces/metadata.interface'
+//import { ContainerService } from '../container/container.service'
+//import { ContainerMetadata } from '../interfaces/metadata.interface'
+//import { ContainerIdInfo } from '../interfaces/metadata.interface'
 
 @Injectable()
 export class PodService {
     constructor(
         @InjectRepository(Pod, 'podConnection')
         private readonly podRepository: Repository<Pod>,
-        private readonly containerService: ContainerService
+        //private readonly containerService: ContainerService
     ){}
 
     async create(key: string, value: PodMetadata): Promise<Pod> {
       try{
-        const container = this.podRepository.create({ key, value });
-        await this.podRepository.save(container);
-        return container
+        const pod = this.podRepository.create({ key, value });
+        await this.podRepository.save(pod);
+        return pod
       } catch (error) {
         console.error('Error saving key-value pair:', error);
         throw new Error('Could not save key-value pair');
@@ -29,9 +29,9 @@ export class PodService {
 
     async update(key: string, value: PodMetadata): Promise<Pod> {
       try{
-        const container = this.podRepository.create({ key, value });
-        await this.podRepository.save(container);
-        return container
+        const pod = this.podRepository.create({ key, value });
+        await this.podRepository.save(pod);
+        return pod
       } catch (error) {
         console.error('Error saving key-value pair:', error);
         throw new Error('Could not save key-value pair');
