@@ -51,6 +51,9 @@ export class AppController {
     return newUUID;
   }
   private async createPodF(podId : string, podName : string, podLabels : Label[], containerlist : ContainerInfo[], replicasetName : string) : Promise<string>{
+    if(await this.podService.getPod(podId)){
+      return null;
+    }
     /*API to Scheduler : Scheduling Worker Nodes*/
     const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
         
@@ -71,12 +74,14 @@ export class AppController {
       const containerInfo : ContainerIdInfo = {
         id : containerId,
         metadata : container
-      }
-      containerIdList.push(containerInfo);
-      
-      await this.containerService.updateContainerState(containerId, containerName, imageName, workernodeName);
     }
-
+    containerIdList.push(containerInfo);
+      
+    await this.containerService.updateContainerState(containerId, containerName, imageName, workernodeName);
+    
+    
+    
+    
     /*API to ETCD : update PodDB*/
     const containers : number = containerlist.length;
     const podMetadata : PodMetadata = {
@@ -94,6 +99,7 @@ export class AppController {
     workernodeContainers=workernodeContainers+containerNumber;
     workernodePods=workernodePods+1;
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
+    }
 
     return workernodeName;
   }
@@ -104,27 +110,33 @@ export class AppController {
     const podLabels : Label[] = body.podLabels;
     const containerlist : ContainerInfo[] = body.containerInfolist;
 
-    const newUUID : string = await this.generateUUID([]);
-    const podId : string = podName + newUUID;
-    const workernodeName : string = await this.createPodF(podId, podName, podLabels, containerlist, null);
+    const workernodeName : string = await this.createPodF(podName, podName, podLabels, containerlist, null);
 
+    if(!workernodeName){
+      return `${podName} is already exist.`;
+    }
     return `${podName}(container) is running in ${workernodeName}(worker-node)`;
   }
 
-  private async createReplicasetF(replicasetName : string, replicas : number, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<void> {
-    let podIdList : string[] = []
+  private async createReplicasetF(replicasetName : string, replicas : number, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<boolean> {
+    if(await this.replicasetService.getReplicaset(replicasetName)){
+      return false;
+    }
+    let podIdList : string[] = [];
     for(let i = 0; i < replicas; i++){
       const newUUID : string = await this.generateUUID(podIdList);
       const podId : string = podName + newUUID;
       await this.createPodF(podId, podName, podLabels, containerlist, replicasetName);
       podIdList.push(newUUID);
+      const podTemplate : PodTemplate = {
+        name : podName,
+        containerlist : containerlist
+      }
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
     }
-
-    const podTemplate : PodTemplate = {
-      name : podName,
-      containerlist : containerlist
-    }
-    await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
+    //await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
+    
+    return true;
   }
   @Post('/create/replicaset')
   async createReplicaset(@Body() body: CreateReplicasetDto) {
@@ -136,14 +148,18 @@ export class AppController {
     const podLabels : Label[] = body.podInfo.podLabels;
     const containerlist : ContainerInfo[] = body.podInfo.containerInfolist;
 
-    await this.createReplicasetF(replicasetName, replicas, matchLabels, podName, podLabels, containerlist);
+    const finish = await this.createReplicasetF(replicasetName, replicas, matchLabels, podName, podLabels, containerlist);
 
+    if(!finish){
+      return `${replicasetName} is already exist.`
+    }
     return `${replicasetName}(replicaset) is running`;
   }
 
   private async deletePodF(podId: string, isDeleteReplicas : boolean) : Promise<string>{
     /*API to ETCD : Get container information from ETCD*/
     const podInfo : Pod = await this.podService.getPod(podId);
+    //const podId : string = podInfo.key;
     const workernodeName : string = podInfo.value.workernode;
     const replicasetName : string = podInfo.value.replicaset;
     const podLabels : Label[] = podInfo.value.podLabels;
@@ -158,10 +174,26 @@ export class AppController {
     let workernodePods : number = WorkerNodeInfo.value.pods;
     /*API to kubelet : Remove containers*/
     /*API to ETCD : Remove Container State in ContainerDB*/
-    for(let container of containerIdList){
+    const containers : number = containerIdList.length;
+    for(let index in containerIdList){
+      const container = containerIdList[index];
       const containerId = container.id;
       await this.appService.removeContainer(workernodeIp, workernodePort, containerId);
       await this.containerService.removeContainer(containerId);
+
+      /*API to ETCD : update PodDB*/
+      container.id=null;
+      containerIdList[index]=container;
+      const podMetadata : PodMetadata = {
+        name : podName,
+        podLabels : podLabels,
+        replicaset : replicasetName,
+        workernode : workernodeName,
+        containers : containers,
+        containeridlist : containerIdList
+      }
+      await this.podService.updatePodState(podId, podMetadata);
+      
     }
 
     /*API to ETCD : Remove Pod State in PodDB*/
@@ -173,58 +205,21 @@ export class AppController {
     workernodePods=workernodePods-1;
     await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
+    
     if(replicasetName != null && !isDeleteReplicas){
-
-      let newcontainerIdList : ContainerIdInfo[] = [];
-      for(let container of containerIdList){
-        const containerName = container.metadata.name;
-        const imageName : string = container.metadata.image;
-
-        const containerId : string = await this.appService.runContainerWithImage(workernodeIp, workernodePort, imageName);
-        const containerInfo : ContainerIdInfo = {
-          id : containerId,
-          metadata : container.metadata
-        }
-        const newcontainer : ContainerInfo = {
-          name : containerName,
-          image : imageName
-        }
-        newcontainerIdList.push(containerInfo);
-      
-        await this.containerService.updateContainerState(containerId, containerName, imageName, workernodeName);
-      }
-
       const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
       const replicas : number = replicasetInfo.value.replicas;
       const matchLabels : Label[] = replicasetInfo.value.matchlabel;
+
       const podTemplate : PodTemplate= replicasetInfo.value.podtemplate;
+      const containerList : ContainerInfo[] = podTemplate.containerlist;
+
       const podIdList : string[] = replicasetInfo.value.podidlist;
       const newUUID : string = await this.generateUUID(podIdList);
       const newpodId : string = podName + newUUID;
       const newpodIdList: string[] = podIdList.map(pId => (podName + pId) === podId ? newUUID : pId);
-
-      /*API to ETCD : update PodDB*/
-      const containers : number = containerIdList.length;
-      const podMetadata : PodMetadata = {
-        name : podName,
-        podLabels : podLabels,
-        replicaset : replicasetName,
-        workernode : workernodeName,
-        containers : containers,
-        containeridlist : newcontainerIdList
-      }
-      await this.podService.updatePodState(newpodId, podMetadata);
-
-      /*API to ETCD : Update the worker node's container count in WorkernodeDB*/
-      const WorkerNodeInfo2 : WorkerNode = await this.workernodeService.getWorkerNodeInfo(workernodeName);
-    
-      let workernodeContainers2 : number = WorkerNodeInfo2.value.containers;
-      let workernodePods2 : number = WorkerNodeInfo2.value.pods;
-      const containerNumber2 : number = containerIdList.length;
-      workernodeContainers2=workernodeContainers2+containerNumber2;
-      workernodePods2=workernodePods2+1;
-      await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers2, workernodePods2);
-
+      await this.createPodF(newpodId, podName, podLabels, containerList, replicasetName);
+      
       await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
     }
 
@@ -233,6 +228,7 @@ export class AppController {
 
   @Delete('/delete/pod')
   async deletePod(@Query('name') podId : string) {
+    //const podInfo : Pod = await this.podService.getPod(podId);
     const workernodeName:string = await this.deletePodF(podId, false);
 
     return `${podId}(pod id) is removed in ${workernodeName}(worker-node)`;
@@ -241,9 +237,22 @@ export class AppController {
   private async deleteReplicasetF(replicasetName : string, replicasetInfo : Replicaset) : Promise<void> {
     const podName : string = replicasetInfo.value.podtemplate.name;
     const podIdList : string[] = replicasetInfo.value.podidlist;
-    for(var podId of podIdList){
+    const replicas : number = replicasetInfo.value.replicas;
+    const matchLabels : Label[] = replicasetInfo.value.matchlabel;
+    const podTemplate : PodTemplate = replicasetInfo.value.podtemplate;
+    while(podIdList.length != 0){
+      const podId : string = podIdList.pop();
       await this.deletePodF(podName + podId, true);
+
+      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
     }
+    // for(var index in podIdList){
+    //   const podId : string = podIdList[index];
+    //   //const podInfo : Pod = await this.podService.getPod(podName + podId);
+    //   await this.deletePodF(podName + podId, true);
+
+    //   await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, podIdList, podTemplate);
+    // }
 
     await this.replicasetService.removeReplicase(replicasetName);
   }
@@ -276,7 +285,9 @@ export class AppController {
         const iter : number = currentreplicas - replicas;
         for(let i = 0; i < iter ; i++){
           const deletePodId = newpodIdList.pop();
+          //const podInfo : Pod = await this.podService.getPod(podName+deletePodId);
           await this.deletePodF(podName+deletePodId, true);
+          await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
         }
       } else{
         const iter : number = replicas - currentreplicas;
@@ -285,11 +296,22 @@ export class AppController {
           const newpodId : string = podName + newUUID;
           await this.createPodF(newpodId, podName, podLabels, containerList, replicasetName);
           newpodIdList.push(newUUID);
+          await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
         }
       }
 
-      await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
+      //await this.replicasetService.updateReplicasetState(replicasetName, replicas, matchLabels, newpodIdList, podTemplate);
     }
+  }
+
+  @Get('/get/pod')
+  async getPod(@Query('name') name : string): Promise<Pod> {
+    return this.podService.getPod(name);
+  }
+
+  @Get('/get/replicaset')
+  async getReplicaset(@Query('name') name : string): Promise<Replicaset> {
+    return this.replicasetService.getReplicaset(name);
   }
 
 
