@@ -1,24 +1,17 @@
-import { Controller, Get, Post, Delete, Patch, Query, Body, UseInterceptors, UploadedFile} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Query, Body } from '@nestjs/common';
 import { AppService } from './app.service';
 import { WorkernodeService } from './workernode/workernode.service';
 import { ContainerService } from './container/container.service';
 import { PodService } from './pod/pod.service'
 import { WorkerNode } from './entities/workernode.entity';
 import { Container } from './entities/container.entity';
-import { CreatePodDto, PodMetadata, ReplicasetMetadata } from './interfaces/metadata.interface';
-import { CreateReplicasetDto, CreateDeploymentDto } from './interfaces/metadata.interface'
-import { ContainerInfo } from './interfaces/metadata.interface';
-import { ContainerMetadata } from './interfaces/metadata.interface';
+import { CreatePodDto, PodMetadata, ReplicasetMetadata, ContainerInfo, PodTemplate, Label, CreateReplicasetDto, CreateDeploymentDto, ContainerIdInfo } from './interfaces/metadata.interface';
 import { Pod } from './entities/pod.entity';
-import { Deployment } from './entities/deployment.entity'
-import { ContainerIdInfo } from './interfaces/metadata.interface'
+import { Deployment } from './entities/deployment.entity';
 import { v4 as uuidv4 } from 'uuid';
-import { ReplicasetService } from './replicaset/replicaset.service'
-import { PodTemplate } from './interfaces/metadata.interface'
-import { Label } from './interfaces/metadata.interface'
-import { Replicaset } from './entities/replicaset.entity'
-import { DeploymentService } from './deployment/deployment.service'
-import { query } from 'express';
+import { ReplicasetService } from './replicaset/replicaset.service';
+import { Replicaset } from './entities/replicaset.entity';
+import { DeploymentService } from './deployment/deployment.service';
 
 
 @Controller()
@@ -32,6 +25,11 @@ export class AppController {
     private readonly deploymentService: DeploymentService
   ) {}
 
+  /**
+   * This function returns the worker node with the minimum number of containers.
+   * It first retrieves information about all worker nodes from ETCD,
+   * then it uses the scheduler service to find the worker node with the fewest containers.
+   */
   private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
     /*API to ETCD : Get all worker nodes information from ETCD*/
     const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
@@ -45,7 +43,12 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
-
+  /**
+   * This function generates a UUID that is not already present in the provided list of existing UUIDs.
+   * It continuously generates a new UUID until it finds one that is not in the existingUUIDs array.
+   * @param existingUUIDs - An array of UUIDs that already exist and should be avoided.
+   * @returns A promise that resolves to a new, unique UUID.
+   */
   private async generateUUID(existingUUIDs: string[]): Promise<string> {
     let newUUID: string;
     do {
@@ -54,7 +57,24 @@ export class AppController {
     
     return newUUID;
   }
-  private async createPodF(podId : string, podName : string, podLabels : Label[], containerlist : ContainerInfo[], replicasetName : string) : Promise<string>{
+
+  /**
+   * This function creates a pod and schedules it on a worker node with the fewest containers.
+   * It interacts with the scheduler to find the appropriate worker node, runs containers on the kubelet, and updates the state in ETCD.
+   * @param podId - The ID of the pod.
+   * @param podName - The name of the pod.
+   * @param podLabels - An array of labels of the pod.
+   * @param containerlist - A list of containers to be included in the pod.
+   * @param replicasetName - The name of the replicaset to which the pod belongs.
+   * @returns A promise that resolves to the name of the worker node where the pod is scheduled.
+   */
+  private async createPodF(
+    podId : string,
+    podName : string,
+    podLabels : Label[],
+    containerlist : ContainerInfo[],
+    replicasetName : string
+  ) : Promise<string>{
     /*API to Scheduler : Scheduling Worker Nodes*/
     const minContainersWorkerNode : WorkerNode = await this.getMinContainersWorkerNodeFromScheduler();
         
@@ -67,8 +87,6 @@ export class AppController {
     /*API to kubelet : Running cotainers*/
     /*API to ETCD : Add new Container State in ContainerDB*/
     let containerIdList : ContainerIdInfo[] = [];
-    //const containerNumber : number = containerIdList.length;
-    //workernodeContainers=workernodeContainers+containerNumber;
     for(var container of containerlist){
       const containerName = container.name;
       const imageName : string = container.image;
@@ -81,8 +99,6 @@ export class AppController {
     containerIdList.push(containerInfo);
       
     await this.containerService.updateContainerState(containerId, containerName, imageName, workernodeName);
-    
-    
     
     
     /*API to ETCD : update PodDB*/
@@ -107,6 +123,13 @@ export class AppController {
 
     return workernodeName;
   }
+
+  /**
+   * This function handles the HTTP POST request to create a new pod.
+   * It parses the request data, checks if a pod with the given name already exists, and if not, it creates a new pod and schedules it on a worker node.
+   * @param body - The data sent in the request body to create a pod.
+   * @returns A message indicating the status of the pod creation.
+   */
   @Post('/create/pod')
   async createPod(@Body() body : CreatePodDto){
     //Request Data Parsing
@@ -123,7 +146,27 @@ export class AppController {
     return `${podName}(container) is running in ${workernodeName}(worker-node)`;
   }
 
-  private async createReplicasetF(replicasetName : string, replicas : number, deployment : string, matchLabels : Label[], podName : string, podLabels : Label[], containerlist : ContainerInfo[]) : Promise<void> {
+  /**
+ * This function creates a replicaset with a specified number of replicas.
+  * It generates unique pod IDs, creates the pods, and updates the replicaset state in the database.
+  * @param replicasetName - The name of the replicaset.
+  * @param replicas - The number of replicas to be created.
+  * @param deployment - The deployment to which the replicaset belongs.
+  * @param matchLabels - An array of match labels of replicaset.
+  * @param podName - The name of the pod in replicaset.
+  * @param podLabels - An array of labels of the pod.
+  * @param containerlist - The list of containers to be included in each pod.
+  * @returns A promise that resolves when the replicaset is successfully created.
+  */
+  private async createReplicasetF(
+    replicasetName : string,
+    replicas : number,
+    deployment : string,
+    matchLabels : Label[],
+    podName : string,
+    podLabels : Label[],
+    containerlist : ContainerInfo[]
+  ) : Promise<void> {
     let podIdList : string[] = [];
     for(let i = 0; i < replicas; i++){
       const newUUID : string = await this.generateUUID(podIdList);
@@ -138,6 +181,13 @@ export class AppController {
       await this.replicasetService.updateReplicasetState(replicasetName, replicas, deployment, matchLabels, podIdList, podTemplate);
     }
   }
+
+  /**
+   * This function handles the HTTP POST request to create a new replicaset.
+   * It parses the request data, checks if a replicaset with the given name already exists, and if not, it creates a new replicaset with the specified number of replicas and updates the state.
+   * @param body - The data sent in the request body to create a replicaset.
+   * @returns A message indicating the status of the replicaset creation.
+   */
   @Post('/create/replicaset')
   async createReplicaset(@Body() body: CreateReplicasetDto) {
     //Request Data Parsing
@@ -157,6 +207,12 @@ export class AppController {
     return `${replicasetName}(replicaset) is running`;
   }
 
+  /**
+   * This function handles the HTTP POST request to create a new deployment.
+   * It parses the request data, checks if a deployment with the given name already exists, and if not, it creates a new deployment with the specified configuration and updates the state.
+   * @param body - The data sent in the request body to create a deployment.
+   * @returns A message indicating the status of the deployment creation.
+   */
   @Post('/create/deployment')
   async createDeployment(@Body() body: CreateDeploymentDto) {
     //Request Data Parsing
@@ -181,8 +237,14 @@ export class AppController {
     await this.deploymentService.updateDeploymentState(deploymentName, replicasetId, strategyType);
 
     return `${deploymentName}(deployment) is running`;
-
   }
+
+  /**
+   * This function handles the HTTP POST request to apply changes to a deployment.
+   * It parses the request data, generates a new replicaset if necessary, and updates or recreates the deployment based on the specified strategy type.
+   * @param body - The data sent in the request body to apply changes to a deployment.
+   * @returns A message indicating the status of the deployment apply operation.
+   */
   @Post('/apply/deployment')
   async applyDeployment(@Body() body: CreateDeploymentDto) {
     //Request Data Parsing
@@ -193,7 +255,6 @@ export class AppController {
     const podName : string = body.podInfo.podName;
     const podLabels : Label[] = body.podInfo.podLabels;
     const containerlist : ContainerInfo[] = body.podInfo.containerInfolist;
-    
 
     const replicasetId : string = await this.generateUUID([]);
     const replicasetName : string = deploymentName + replicasetId;
@@ -214,13 +275,18 @@ export class AppController {
       await this.createReplicasetF(replicasetName, replicas, deploymentName, matchLabels, podName, podLabels, containerlist);
     }
 
-    //this.createReplicasetF(replicasetName, replicas, matchLabels, podName, podLabels, containerlist);
     this.deploymentService.updateDeploymentState(deploymentName, replicasetId, strategyType);
 
     return `${deploymentName}(deployment) is running`;
-
   }
 
+  /**
+ * This function deletes a pod and optionally its replicas.
+ * It interacts with ETCD to get and update the container and pod information, and it communicates with kubelet to remove the containers.
+ * @param podId - The ID of the pod to be deleted.
+ * @param isDeleteReplicas - A boolean indicating whether to delete the replicas. When the user deletes the pod inside the replica set from the outside, regenerate the pod again to match the replicas.
+ * @returns A promise that resolves to the name of the worker node where the pod was deleted.
+ */
   private async deletePodF(podId: string, isDeleteReplicas : boolean) : Promise<string>{
     /*API to ETCD : Get container information from ETCD*/
     const podInfo : Pod = await this.podService.getPod(podId);
@@ -293,6 +359,12 @@ export class AppController {
     return workernodeName;
   }
 
+  /**
+   * This function handles the HTTP DELETE request to delete a pod.
+   * It checks if the pod with the given ID exists, and if so, it deletes the pod and returns a message indicating the successful deletion.
+   * @param podId - The ID of the pod to be deleted, passed as a query parameter.
+   * @returns A message indicating the status of the pod deletion.
+   */
   @Delete('/delete/pod')
   async deletePod(@Query('name') podId : string) {
     const podInfo : Pod = await this.podService.getPod(podId);
@@ -304,6 +376,14 @@ export class AppController {
     return `${podId}(pod id) is removed in ${workernodeName}(worker-node)`;
   }
 
+  /**
+   * This function deletes a replicaset and all its associated pods.
+   * It iterates through the list of pod IDs, deletes each pod, and updates the replicaset state accordingly.
+   * Once all pods are deleted, it removes the replicaset itself.
+   * @param replicasetName - The name of the replicaset to be deleted.
+   * @param replicasetMetadata - The metadata of the replicaset, including pod information.
+   * @returns A promise that resolves when the replicaset is successfully deleted.
+   */
   private async deleteReplicasetF(replicasetName : string, replicasetMetadata : ReplicasetMetadata) : Promise<void> {
     const podName : string = replicasetMetadata.podtemplate.name;
     const podIdList : string[] = replicasetMetadata.podidlist;
@@ -317,9 +397,16 @@ export class AppController {
 
       await this.replicasetService.updateReplicasetState(replicasetName, replicas, deploymentName, matchLabels, podIdList, podTemplate);
     }
-
     await this.replicasetService.removeReplicase(replicasetName);
   }
+
+ /**
+  * This function handles the HTTP DELETE request to delete a replicaset.
+  * It checks if the replicaset with the given name exists, and if so, it deletes the replicaset and all its associated pods.
+  * If the replicaset belongs to a deployment, it creates a new replicaset for the deployment with the same configuration.
+  * @param replicasetName - The name of the replicaset to be deleted, passed as a query parameter.
+  * @returns A message indicating the status of the replicaset deletion.
+  */
   @Delete('delete/replicaset')
   async deleteReplicaset(@Query('name') replicasetName : string) {
     const replicasetInfo : Replicaset = await this.replicasetService.getReplicaset(replicasetName);
@@ -351,6 +438,12 @@ export class AppController {
     return `${replicasetName}(pod id) is removed`;
   }
 
+  /**
+   * This function handles the HTTP DELETE request to delete a deployment.
+   * It checks if the deployment with the given name exists, and if so, it deletes the associated replicaset and then removes the deployment itself.
+   * @param deploymentName - The name of the deployment to be deleted, passed as a query parameter.
+   * @returns A message indicating the status of the deployment deletion.
+   */
   @Delete('delete/deployment')
   async deleteDeployment(@Query('name') deploymentName : string) { 
     const deploymentInfo : Deployment = await this.deploymentService.getDeployment(deploymentName);
@@ -367,6 +460,13 @@ export class AppController {
     return `${deploymentName}(deployment) is removed`;
   }
 
+  /**
+   * This function handles the HTTP PATCH request to scale a replicaset.
+   * It adjusts the number of replicas in the replicaset to the desired count by either adding or removing pods.
+   * @param replicasetName - The name of the replicaset to be scaled, passed as a query parameter.
+   * @param replicasString - The desired number of replicas, passed as a query parameter.
+   * @returns A message indicating the status of the replicaset scaling operation.
+   */
   @Patch('scale/replicaset')
   async scaleReplicaset(@Query('name') replicasetName : string, @Query('replicas') replicasString : number){
     try{
@@ -408,7 +508,6 @@ export class AppController {
       console.error(`Failed to scale replicaset: ${replicasetName}`, error);
       throw new Error(`Failed to scale replicaset: ${replicasetName}, Error: ${error.message}`);
     }
-  
   }
 
   @Get('/get/pod')
