@@ -13,6 +13,9 @@ import { ReplicasetService } from './replicaset/replicaset.service'
 import { DeploymentModule } from './deployment/deployment.module';
 import { DeploymentService } from './deployment/deployment.service'
 
+//import { WorkernodeController } from './workernode/workernode.controller'
+
+
 
 @Module({
   imports: [

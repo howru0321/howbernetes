@@ -32,7 +32,7 @@ export class AppController {
    */
   private async getMinContainersWorkerNodeFromScheduler() : Promise<WorkerNode> {
     /*API to ETCD : Get all worker nodes information from ETCD*/
-    const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNodeInfo();
+    const allWorkerNodeInfo : WorkerNode[] = await this.workernodeService.getAllWorkerNode();
     /*API to SCHEDULER : Use scheduler service to find the worker node with the minimum number of containers*/
     const minContainersWorkerNode : WorkerNode = await this.workernodeService.checkWorkerNodeInfo(allWorkerNodeInfo);
     
@@ -118,7 +118,7 @@ export class AppController {
     if(containerIdList.length === containerlist.length){
       workernodePods=workernodePods+1;
     }
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
+    await this.workernodeService.updateWorkerNode(workernodeIp, workernodePort, workernodeContainers, workernodePods);
     }
 
     return workernodeName;
@@ -326,7 +326,7 @@ export class AppController {
       await this.podService.updatePodState(podId, podMetadata);
 
       workernodeContainers=workernodeContainers-1;
-      await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
+      await this.workernodeService.updateWorkerNode(workernodeIp, workernodePort, workernodeContainers, workernodePods);
     }
 
     /*API to ETCD : Remove Pod State in PodDB*/
@@ -335,7 +335,7 @@ export class AppController {
     /*API to ETCD : Update the worker node's container count in WorkernodeDB*/
     const containerNumber : number = containerIdList.length;
     workernodePods=workernodePods-1;
-    await this.workernodeService.sendWorkerNodeInfoToDB(workernodeName, workernodeIp, workernodePort, workernodeContainers, workernodePods);
+    await this.workernodeService.updateWorkerNode(workernodeIp, workernodePort, workernodeContainers, workernodePods);
 
     
     if(replicasetName != null && !isDeleteReplicas){
@@ -536,42 +536,4 @@ export class AppController {
   async getallDeployment(): Promise<Deployment[]> {
     return this.deploymentService.getAllDeploymentList();
   }
-
-  @Get('/get/workernode')
-  async getWorkerNode(@Query('name') name : string): Promise<WorkerNode> {
-    return this.workernodeService.getWorkerNode(name);
-  }
-  @Get('/getall/workernode')
-  async getallWorkerNode(): Promise<WorkerNode[]> {
-    return this.workernodeService.getAllWorkerNodeInfo();
-  }
-
-
-  @Post('/worker')
-  async addWorkerNodeInfo(@Body() body: {name: string, ip: string, port: string}) {
-    const {name, ip, port} = body;
-    
-    const workernodeInfo : WorkerNode = await this.workernodeService.getWorkerNode(name);
-    if(workernodeInfo){
-      return `${name}(worker node) is already exist.`
-    }
-    return this.workernodeService.sendWorkerNodeInfoToDB(name, ip, port, 0, 0);
-  }
-
-  @Delete('/delete/worker')
-  async deleteWorkerNodeInfo(@Query('name') name :string) {
-    const workernodeInfo : WorkerNode = await this.workernodeService.getWorkerNode(name);
-
-    if(workernodeInfo.value.pods !== 0){
-      return `${name} is working! You cannot delete this worker node.`
-    }
-
-    return this.workernodeService.removeWorkernode(name);
-  }
-
-  @Get('/container/getall')
-  async getContainerList(): Promise<Container[]> {
-    return this.containerService.getAllContainerList();
-  }
-
 }
